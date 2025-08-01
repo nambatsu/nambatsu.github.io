@@ -2,59 +2,158 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>正規分布ランダム実数</title>
+  <title>正規分布とサンプル点表示</title>
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      margin-top: 100px;
-      background-color: #f0f0f0;
+      background-color: #f8f8f8;
+      padding: 40px;
     }
     #number {
-      font-size: 100px;
-      margin: 40px;
+      font-size: 48px;
+      margin: 20px;
       font-family: monospace;
-      color: #333;
     }
     button {
-      font-size: 28px;
-      padding: 15px 40px;
-      border: none;
-      border-radius: 8px;
+      font-size: 24px;
+      padding: 10px 30px;
+      margin-bottom: 20px;
       background-color: #4CAF50;
       color: white;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
     }
     button:hover {
       background-color: #45a049;
     }
+    #mode {
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+    canvas {
+      max-width: 700px;
+      margin: auto;
+    }
   </style>
 </head>
 <body>
-  <h1>正規分布に従う0〜10の実数</h1>
-  <div id="number">5</div>
-  <button onclick="showNormalRandom()">表示</button>
+
+  <h1>正規分布 N(5, 2²) + サンプル点表示</h1>
+
+  <div id="number">--</div>
+
+  <button onclick="showNormalSample()">ランダム実数を表示</button>
+  <div style="margin-top: 20px;">
+  <a href="index.html" style="font-size: 18px; color: blue; text-decoration: underline;">
+    → 一様分布ページへ
+  </a>
+</div>
+
+  <div id="mode">
+    <label>
+      <input type="checkbox" id="retainPoints" checked>
+      赤い点を蓄積する（オフで1点のみ表示）
+    </label>
+  </div>
+
+  <canvas id="pdfChart"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-    // Box-Muller法で平均mu, 標準偏差sigmaの正規分布に従う乱数を生成
-    function randn_bm(mu = 5, sigma = 2) {
+    const mu = 5;
+    const sigma = 2;
+
+    // 正規分布のPDF
+    function normalPDF(x, mu, sigma) {
+      return (1 / (sigma * Math.sqrt(2 * Math.PI))) *
+             Math.exp(-((x - mu) ** 2) / (2 * sigma ** 2));
+    }
+
+    // 正規分布曲線データ [-5, 15]
+    const normalPdfPoints = [];
+    for (let x = -5; x <= 15; x += 0.1) {
+      normalPdfPoints.push({ x: x, y: normalPDF(x, mu, sigma) });
+    }
+
+    const ctx = document.getElementById('pdfChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: '正規分布 N(5, 2²)',
+            data: normalPdfPoints,
+            borderColor: 'blue',
+            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+            pointRadius: 0,
+            showLine: true,
+            borderWidth: 2
+          },
+          {
+            label: 'サンプル点',
+            data: [],
+            borderColor: 'red',
+            backgroundColor: 'red',
+            pointRadius: 6,
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'x（-∞〜∞ の近似: -5〜15）' },
+            min: -5,
+            max: 15
+          },
+          y: {
+            title: { display: true, text: '確率密度 f(x)' },
+            min: 0,
+            max: 0.25
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              filter: (legendItem) => legendItem.text !== undefined
+            }
+          }
+        }
+      }
+    });
+
+    // Box-Muller法で正規分布 N(μ, σ²) に従う乱数を生成
+    function generateNormal(mu = 5, sigma = 2) {
       let u = 0, v = 0;
-      while (u === 0) u = Math.random(); // [0,1)ではなく(0,1)
+      while (u === 0) u = Math.random();
       while (v === 0) v = Math.random();
-      let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
       return z * sigma + mu;
     }
 
-    function showNormalRandom() {
-      let num;
-      // 0〜10の範囲に収まるまで再生成（必要に応じてclip方式にも変更可）
-      do {
-        num = randn_bm();
-      } while (num < 0 || num > 10);
-
-      let formatted = num.toFixed(10).replace(/\.?0+$/, '');
+    function showNormalSample() {
+      const num = generateNormal(mu, sigma);
+      const formatted = num.toFixed(10).replace(/\.?0+$/, '');
       document.getElementById('number').textContent = formatted;
+
+      const retain = document.getElementById('retainPoints').checked;
+      const point = { x: parseFloat(num), y: normalPDF(num, mu, sigma) };
+
+      const sampleDataset = chart.data.datasets[1];
+
+      if (retain) {
+        sampleDataset.data.push(point);
+      } else {
+        sampleDataset.data = [point];
+      }
+
+      chart.update();
     }
   </script>
+
 </body>
 </html>

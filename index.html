@@ -2,46 +2,143 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ランダム実数表示</title>
+  <title>一様分布とサンプル表示</title>
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      margin-top: 100px;
-      background-color: #f0f0f0;
+      background-color: #f8f8f8;
+      padding: 40px;
     }
     #number {
-      font-size: 100px;
-      margin: 40px;
+      font-size: 48px;
+      margin: 20px;
       font-family: monospace;
-      color: #333;
     }
     button {
-      font-size: 28px;
-      padding: 15px 40px;
-      border: none;
-      border-radius: 8px;
+      font-size: 24px;
+      padding: 10px 30px;
+      margin-bottom: 20px;
       background-color: #4CAF50;
       color: white;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
     }
     button:hover {
       background-color: #45a049;
     }
+    #mode {
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+    canvas {
+      max-width: 700px;
+      margin: auto;
+    }
   </style>
 </head>
 <body>
-  <h1>0以上10未満のランダムな実数</h1>
-  <div id="number">0</div>
-  <button onclick="showRandomNumber()">表示</button>
+
+  <h1>一様分布 U(0,10) + サンプル点表示</h1>
+
+  <div id="number">--</div>
+
+  <button onclick="showRandomNumber()">ランダム実数を表示</button>
+
+  <div style="margin-top: 20px;">
+  <a href="N.html" style="font-size: 18px; color: blue; text-decoration: underline;">
+    → 正規分布ページへ
+  </a>
+</div>
+
+  <div id="mode">
+    <label>
+      <input type="checkbox" id="retainPoints" checked>
+      赤い点を蓄積する（オフで1点のみ表示）
+    </label>
+  </div>
+
+  <canvas id="pdfChart"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
+    const uniformPdfPoints = [];
+    for (let x = -5; x <= 15; x += 0.1) {
+      uniformPdfPoints.push({
+        x: x,
+        y: (x >= 0 && x < 10) ? 0.1 : 0
+      });
+    }
+
+    const ctx = document.getElementById('pdfChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: '一様分布 U(0,10)',
+            data: uniformPdfPoints,
+            borderColor: 'blue',
+            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+            pointRadius: 0,
+            showLine: true,
+            borderWidth: 2
+          },
+          {
+            label: 'サンプル点',
+            data: [],
+            borderColor: 'red',
+            backgroundColor: 'red',
+            pointRadius: 6,
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        scales: {
+          x: {
+            type: 'linear',
+            title: { display: true, text: 'x（-∞〜∞ の近似: -5〜15）' },
+            min: -5,
+            max: 15
+          },
+          y: {
+            title: { display: true, text: '確率密度 f(x)' },
+            min: 0,
+            max: 0.2
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              filter: (legendItem) => legendItem.text !== undefined
+            }
+          }
+        }
+      }
+    });
+
     function showRandomNumber() {
       const num = Math.random() * 10;
-      let output = num.toFixed(23);                     // 小数第10位まで
-      output = output.replace(/\.?0+$/, '');             // 末尾の0と小数点を除去
-      document.getElementById('number').textContent = output;
+      const formatted = num.toFixed(10).replace(/\.?0+$/, '');
+      document.getElementById('number').textContent = formatted;
+
+      const retain = document.getElementById('retainPoints').checked;
+      const point = { x: parseFloat(num), y: 0.1 };
+
+      const sampleDataset = chart.data.datasets[1];
+
+      if (retain) {
+        sampleDataset.data.push(point);
+      } else {
+        sampleDataset.data = [point];
+      }
+
+      chart.update();
     }
   </script>
+
 </body>
 </html>
