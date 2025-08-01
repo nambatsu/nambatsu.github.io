@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>正規分布ランダム実数</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 100px;
+      background-color: #f0f0f0;
+    }
+    #number {
+      font-size: 100px;
+      margin: 40px;
+      font-family: monospace;
+      color: #333;
+    }
+    button {
+      font-size: 28px;
+      padding: 15px 40px;
+      border: none;
+      border-radius: 8px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>正規分布に従う0〜10の実数</h1>
+  <div id="number">5</div>
+  <button onclick="showNormalRandom()">表示</button>
+
+  <script>
+    // Box-Muller法で平均mu, 標準偏差sigmaの正規分布に従う乱数を生成
+    function randn_bm(mu = 5, sigma = 2) {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random(); // [0,1)ではなく(0,1)
+      while (v === 0) v = Math.random();
+      let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      return z * sigma + mu;
+    }
+
+    function showNormalRandom() {
+      let num;
+      // 0〜10の範囲に収まるまで再生成（必要に応じてclip方式にも変更可）
+      do {
+        num = randn_bm();
+      } while (num < 0 || num > 10);
+
+      let formatted = num.toFixed(10).replace(/\.?0+$/, '');
+      document.getElementById('number').textContent = formatted;
+    }
+  </script>
+</body>
+</html>

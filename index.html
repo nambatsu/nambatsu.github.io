@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ランダム実数表示</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 100px;
+      background-color: #f0f0f0;
+    }
+    #number {
+      font-size: 100px;
+      margin: 40px;
+      font-family: monospace;
+      color: #333;
+    }
+    button {
+      font-size: 28px;
+      padding: 15px 40px;
+      border: none;
+      border-radius: 8px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>0以上10未満のランダムな実数</h1>
+  <div id="number">0</div>
+  <button onclick="showRandomNumber()">表示</button>
+
+  <script>
+    function showRandomNumber() {
+      const num = Math.random() * 10;
+      let output = num.toFixed(23);                     // 小数第10位まで
+      output = output.replace(/\.?0+$/, '');             // 末尾の0と小数点を除去
+      document.getElementById('number').textContent = output;
+    }
+  </script>
+</body>
+</html>
