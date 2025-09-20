@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>中心極限定理（CLT）シミュレーター</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg:#f8f8fb; --card:#fff; --ink:#111; --muted:#6b7280; --accent:#2563eb;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif}
+    header{padding:22px 20px;text-align:center;border-bottom:1px solid #e5e7eb;background:var(--card);position:sticky;top:0;z-index:1}
+    h1{margin:0 0 6px 0;font-size:clamp(20px, 2.4vw, 28px)}
+    header p{margin:0;color:var(--muted);font-size:14px}
+
+    .wrap{max-width:1100px;margin:20px auto;padding:0 16px 60px}
+    .panel{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.03)}
+    .controls{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));align-items:end}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input, select{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;background:#fff;font-size:14px}
+    .row{display:grid;gap:14px;grid-template-columns:1.2fr 1fr}
+    @media (max-width:920px){.row{grid-template-columns:1fr}}
+
+    button{cursor:pointer;border:0;background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;font-weight:600}
+    button.secondary{background:#111}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:10px}
+    .stat{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:10px}
+    .stat b{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    .stat span{font-variant-numeric:tabular-nums}
+
+    .note{font-size:13px;color:var(--muted)}
+    canvas{max-height:420px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>中心極限定理（CLT）シミュレーター</h1>
+    <p>どんな母集団分布でも、標本平均の分布は n が大きいほど正規分布に近づく —— を、手元で体感！</p>
+  </header>
+
+  <div class="wrap">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="controls">
+        <div>
+          <label>母集団分布</label>
+          <select id="dist">
+            <option value="uniform">一様分布 U(a,b)</option>
+            <option value="exponential">指数分布 Exp(λ)</option>
+            <option value="bernoulli">ベルヌーイ分布 Ber(p)</option>
+            <option value="poisson">ポアソン分布 Poi(λ)</option>
+          </select>
+        </div>
+        <div id="param-a" class="param">
+          <label>パラメータ a</label>
+          <input id="a" type="number" step="0.01" value="0" />
+        </div>
+        <div id="param-b" class="param">
+          <label>パラメータ b / p / λ</label>
+          <input id="b" type="number" step="0.01" value="1" />
+        </div>
+        <div>
+          <label>標本サイズ n</label>
+          <input id="n" type="number" min="1" max="5000" step="1" value="10" />
+        </div>
+        <div>
+          <label>試行回数（標本平均の個数）M</label>
+          <input id="M" type="number" min="100" max="50000" step="100" value="5000" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="run">シミュレーション実行</button>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="add" class="ghost">結果に追加</button>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="clear" class="secondary">リセット</button>
+        </div>
+        <div>
+          <label>
+            <input id="asDensity" type="checkbox" checked /> ヒストグラムを密度表示（正規曲線と比較しやすい）
+          </label>
+          <label>
+            <input id="showBase" type="checkbox" checked /> 下段に母集団の理論曲線を表示
+          </label>
+        </div>
+      </div>
+
+      <div class="stats" id="stats">
+        <div class="stat"><b>母平均 μ</b><span id="mu">–</span></div>
+        <div class="stat"><b>母分散 σ²</b><span id="var">–</span></div>
+        <div class="stat"><b>理論：平均の標準偏差 σ/√n</b><span id="sdMean">–</span></div>
+        <div class="stat"><b>実測：標本平均の平均</b><span id="empMu">–</span></div>
+        <div class="stat"><b>実測：標本平均の標準偏差</b><span id="empSd">–</span></div>
+      </div>
+      <p class="note" style="margin-top:8px">※ 「結果に追加」は既存の標本平均に新しい試行を加え、分布の滑らかさや正規近似の収束を体感できます。</p>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <h3 style="margin:6px 0 10px">標本平均の分布（CLTの主役）</h3>
+        <canvas id="chartMeans"></canvas>
+      </div>
+      <div class="panel" id="basePanel">
+        <h3 style="margin:6px 0 10px">母集団の形（元の分布）</h3>
+        <canvas id="chartBase"></canvas>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <h3>CLT を見るコツ</h3>
+      <ol>
+        <li><b>分布を偏らせる：</b>指数分布やベルヌーイ分布にしてみる（非対称・離散）。</li>
+        <li><b>n を増やす：</b>標本サイズ n を 1 → 5 → 20 → 50 … と大きくする。</li>
+        <li><b>重ねて観察：</b>「結果に追加」で試行を重ねると滑らかになり、正規曲線と重なっていく。</li>
+      </ol>
+      <p class="note">（技術メモ）ヒストグラムは密度に正規化可能。理論曲線は母平均 μ、母分散 σ² から <code>N(μ, σ²/n)</code> の確率密度を重ね描画しています。</p>
+    </div>
+  </div>
+
+<script>
+// === 分布の乱数 ===
+function rngUniform(a,b){return a + (b-a)*Math.random()}
+function rngExponential(lambda){return -Math.log(1-Math.random())/lambda}
+function rngBernoulli(p){return Math.random()<p?1:0}
+function rngPoisson(lambda){ // Knuth法（λが小〜中で十分）
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k-1;
+}
+
+// === 母平均・母分散（理論値） ===
+function moments(dist, a, b){
+  switch(dist){
+    case 'uniform': { // U(a,b)
+      const mu = (a+b)/2;
+      const v = (b-a)*(b-a)/12;
+      return {mu, v};
+    }
+    case 'exponential': { // Exp(lambda)
+      const mu = 1/b; // b に λ を入れる運用
+      const v = 1/(b*b);
+      return {mu, v};
+    }
+    case 'bernoulli': {
+      const p = b; // b に p
+      const mu = p;
+      const v = p*(1-p);
+      return {mu, v};
+    }
+    case 'poisson': {
+      const lam = b; // b に λ
+      const mu = lam;
+      const v = lam;
+      return {mu, v};
+    }
+  }
+}
+
+// === 乱数ディスパッチャ ===
+function drawOne(dist, a, b){
+  switch(dist){
+    case 'uniform': return rngUniform(a,b);
+    case 'exponential': return rngExponential(b);
+    case 'bernoulli': return rngBernoulli(b);
+    case 'poisson': return rngPoisson(b);
+  }
+}
+
+// === 統計関数 ===
+const mean = arr => arr.reduce((s,x)=>s+x,0)/arr.length;
+const stdev = arr => {
+  const m = mean(arr);
+  const v = arr.reduce((s,x)=>s+(x-m)*(x-m),0)/arr.length; // 母標準偏差
+  return Math.sqrt(v);
+}
+
+// === ヒストグラム（密度/頻度） ===
+function histogram(values, {bins=40, density=true, range=null}){
+  const n = values.length;
+  let min = range?range[0]:Math.min(...values);
+  let max = range?range[1]:Math.max(...values);
+  if(min===max){min -= 0.5; max += 0.5}
+  const w = (max-min)/bins;
+  const edges = Array.from({length: bins+1}, (_,i)=>min+i*w);
+  const counts = new Array(bins).fill(0);
+  for(const x of values){
+    const k = Math.min(Math.floor((x-min)/w), bins-1);
+    if(k>=0 && k<bins) counts[k]++;
+  }
+  const heights = counts.map(c => density ? (c/(n*w)) : c);
+  return {edges, heights, width:w};
+}
+
+// === ステップ線データ（ヒストグラム可視化用） ===
+function stepLineFromHist({edges, heights}){
+  const pts = [];
+  for(let i=0;i<heights.length;i++){
+    const y = heights[i];
+    pts.push({x:edges[i], y});
+    pts.push({x:edges[i+1], y});
+  }
+  return pts;
+}
+
+// === 正規密度 ===
+function normalPdf(x, mu, sd){
+  const z = (x-mu)/sd;
+  return Math.exp(-0.5*z*z)/(sd*Math.sqrt(2*Math.PI));
+}
+function normalCurvePoints(mu, sd, [xmin,xmax], step){
+  const pts=[];
+  for(let x=xmin; x<=xmax; x+=step){ pts.push({x, y: normalPdf(x,mu,sd)}); }
+  return pts;
+}
+
+// === 理論（母集団PDF/PMF）生成 ===
+function baseTheoryPoints(dist, a, b, range, binw){
+  let [xmin, xmax] = range;
+  if(!isFinite(xmin) || !isFinite(xmax)) { xmin = 0; xmax = 1; }
+  const pts = [];
+  switch(dist){
+    case 'uniform':{
+      if(a>b){ const t=a; a=b; b=t; }
+      const h = 1/Math.max(1e-12, (b-a));
+      return { pts:[{x:xmin,y:0},{x:a,y:0},{x:a,y:h},{x:b,y:h},{x:b,y:0},{x:xmax,y:0}], stepped:true };
+    }
+    case 'exponential':{
+      const lam = Math.max(1e-6, b);
+      const start = Math.max(0, xmin);
+      if(xmin < 0){ pts.push({x:xmin, y:0}); pts.push({x:0, y:0}); }
+      const step = Math.max((xmax - xmin)/200, 1e-3);
+      for(let x = start; x <= xmax; x += step){ pts.push({x, y: lam * Math.exp(-lam*x)}); }
+      return { pts, stepped:false };
+    }
+    case 'bernoulli':{
+      const p = Math.min(0.999, Math.max(0.001, b));
+      const support = [0,1];
+      const probs = [1-p, p];
+      return { pts: pmfDensityStepFromSupport(support, probs, [xmin,xmax], binw), stepped:true };
+    }
+    case 'poisson':{
+      const lam = Math.max(1e-6, b);
+      let kmin = Math.max(0, Math.floor(xmin-1));
+      let kmax = Math.max(kmin, Math.ceil(xmax+1));
+      const support = [];
+      const probs = [];
+      let pk = Math.exp(-lam); // P(0)
+      for(let k=0; k<=kmax; k++){
+        if(k>=kmin){ support.push(k); probs.push(pk); }
+        pk = pk * lam / (k+1);
+      }
+      return { pts: pmfDensityStepFromSupport(support, probs, [xmin,xmax], binw), stepped:true };
+    }
+  }
+}
+
+function pmfDensityStepFromSupport(support, probs, range, binw){
+  const [xmin, xmax] = range;
+  const pts = [];
+  if(!isFinite(binw) || binw<=0) return pts;
+  const half = binw * 0.48; // 視覚的に隣と重ならない程度の幅
+  let cursorX = xmin;
+  const pushZeroTo = (x)=>{ if(x>cursorX){ pts.push({x:cursorX,y:0}); pts.push({x:x, y:0}); cursorX = x; } };
+  const pushPlateau = (L, R, h)=>{ L = Math.max(L, xmin); R = Math.min(R, xmax); if(R<=L) return; 
+    pushZeroTo(L); pts.push({x:L, y:h}); pts.push({x:R, y:h}); cursorX = R; pts.push({x:R, y:0}); };
+
+  pts.push({x:xmin, y:0});
+  for(let i=0;i<support.length;i++){
+    const k = support[i];
+    const h = probs[i]/binw;
+    const L = k - half, R = k + half;
+    pushPlateau(L, R, h);
+  }
+  if(cursorX < xmax){ pts.push({x:cursorX, y:0}); pts.push({x:xmax, y:0}); }
+  return pts;
+}
+
+// === Chart.js セットアップ ===
+const ctxMeans = document.getElementById('chartMeans').getContext('2d');
+const ctxBase  = document.getElementById('chartBase').getContext('2d');
+
+const chartMeans = new Chart(ctxMeans, {
+  type: 'scatter',
+  data: { datasets: [
+    { label:'標本平均のヒストグラム', data:[], showLine:true, stepped:true, borderWidth:2, pointRadius:0 },
+    { label:'正規近似（理論）', data:[], showLine:true, pointRadius:0, borderWidth:2 }
+  ]},
+  options:{
+    animation:false,
+    parsing:false,
+    scales:{ x:{type:'linear', title:{display:true, text:'x'}}, y:{title:{display:true, text:'密度（チェックを外すと頻度）'}} },
+    plugins:{ legend:{position:'top'} }
+  }
+});
+
+const chartBase = new Chart(ctxBase, {
+  type: 'scatter',
+  data: { datasets:[
+    { label:'理論（母集団のPDF/PMF）', data:[], showLine:true, stepped:true, borderWidth:2, pointRadius:0 }
+  ]},
+  options:{
+    animation:false,
+    parsing:false,
+    scales:{ x:{type:'linear', title:{display:true, text:'x'}}, y:{title:{display:true, text:'密度'}} },
+    plugins:{ legend:{position:'top'} }
+  }
+});
+
+// === UI 連動 ===
+const $ = id => document.getElementById(id);
+const distEl = $('dist');
+const aEl = $('a');
+const bEl = $('b');
+const nEl = $('n');
+const MEl = $('M');
+const asDensityEl = $('asDensity');
+const showBaseEl = $('showBase');
+const basePanel = $('basePanel');
+
+let sampleMeans = []; // 追加モード用の蓄積
+
+function updateParamVisibility(){
+  const dist = distEl.value;
+  // 既定値
+  if(dist==='uniform'){ $('param-a').style.display='block'; $('param-b').style.display='block'; aEl.value='0'; bEl.value='1'; }
+  if(dist==='exponential'){ $('param-a').style.display='none'; $('param-b').style.display='block'; bEl.value='1'; }
+  if(dist==='bernoulli'){ $('param-a').style.display='none'; $('param-b').style.display='block'; bEl.value='0.3'; }
+  if(dist==='poisson'){ $('param-a').style.display='none'; $('param-b').style.display='block'; bEl.value='3'; }
+}
+
+distEl.addEventListener('change', ()=>{ updateParamVisibility(); refreshTheory(); });
+[aEl,bEl,nEl].forEach(el=> el.addEventListener('input', refreshTheory));
+
+function refreshTheory(){
+  const dist = distEl.value;
+  const a = parseFloat(aEl.value);
+  const b = parseFloat(bEl.value);
+  const n = Math.max(1, parseInt(nEl.value,10)||1);
+  const {mu, v} = moments(dist, a, b);
+  const sdMean = Math.sqrt(v/ n);
+  $('mu').textContent  = fmt(mu);
+  $('var').textContent = fmt(v);
+  $('sdMean').textContent = fmt(sdMean);
+}
+
+function fmt(x){
+  if(!isFinite(x)) return '–';
+  const s = (Math.abs(x)>=1e5 || Math.abs(x)<=1e-4) ? x.toExponential(3) : x.toFixed(6);
+  return s.replace(/\.0+$/, '');
+}
+
+updateParamVisibility();
+refreshTheory();
+
+// === シミュレーション本体 ===
+function simulate({append=false}){
+  const dist = distEl.value;
+  let a = parseFloat(aEl.value);
+  let b = parseFloat(bEl.value);
+  let n = Math.max(1, parseInt(nEl.value,10)||1);
+  let M = Math.max(100, parseInt(MEl.value,10)||100);
+
+  // パラメータの妥当化（U(a,b) は a<b に直す）
+  if(dist==='uniform' && a>=b){ const t=a; a=b; b=t; aEl.value=a; bEl.value=b; }
+  if(dist==='bernoulli'){ b = Math.min(0.999, Math.max(0.001, b)); bEl.value = b; }
+  if(dist==='exponential' || dist==='poisson'){ b = Math.max(1e-6, b); bEl.value = b; }
+
+  const {mu, v} = moments(dist, a, b);
+
+  // 標本平均の生成
+  const means = [];
+  for(let i=0;i<M;i++){
+    let s=0;
+    for(let j=0;j<n;j++) s += drawOne(dist,a,b);
+    means.push(s/n);
+  }
+  if(append) sampleMeans = sampleMeans.concat(means); else sampleMeans = means;
+
+  // ヒストグラム（標本平均）
+  const density = asDensityEl.checked;
+  const hm = histogram(sampleMeans, {bins: 50, density});
+  const stepMeans = stepLineFromHist(hm);
+
+  // 理論正規曲線
+  const sdMean = Math.sqrt(v/Math.max(1,n));
+  const normalPts = normalCurvePoints(mu, sdMean, [hm.edges[0], hm.edges.at(-1)], (hm.width/3));
+
+  // 実測値
+  $('empMu').textContent = fmt(mean(sampleMeans));
+  $('empSd').textContent = fmt(stdev(sampleMeans));
+
+  // 描画
+  chartMeans.data.datasets[0].data = stepMeans;
+  chartMeans.data.datasets[1].data = normalPts;
+  chartMeans.options.scales.y.title.text = density? '密度' : '頻度';
+  chartMeans.update();
+
+  // 母集団理論（PDF/PMF）のみ表示
+  basePanel.style.display = showBaseEl.checked? 'block':'none';
+  if(showBaseEl.checked){
+    const {mu, v} = moments(dist, a, b);
+    const sd = Math.sqrt(Math.max(v, 1e-12));
+    let xmin, xmax, binw;
+    switch(dist){
+      case 'uniform':{
+        if(a>b){ const t=a; a=b; b=t; }
+        const m = (b-a)*0.15; // 少し余白
+        xmin = a - m; xmax = b + m; binw = Math.max((b-a)/10, 1e-3);
+        break;
+      }
+      case 'exponential':{
+        xmin = 0; xmax = (mu + 6*sd); binw = (xmax - xmin)/40;
+        break;
+      }
+      case 'bernoulli':{
+        xmin = -0.5; xmax = 1.5; binw = 1; // 0と1の棒
+        break;
+      }
+      case 'poisson':{
+        const lam = Math.max(1e-6, b);
+        const r = 5*Math.sqrt(lam);
+        xmin = Math.max(0, lam - r); xmax = lam + r; binw = 1; // 整数点
+        break;
+      }
+    }
+    const theory = baseTheoryPoints(dist, a, b, [xmin, xmax], binw);
+    chartBase.data.datasets[0].data = theory.pts;
+    chartBase.data.datasets[0].stepped = !!theory.stepped;
+    chartBase.update();
+  } else {
+    chartBase.data.datasets[0].data = [];
+    chartBase.update();
+  }
+
+}
+
+
+$('run').addEventListener('click', ()=>simulate({append:false}));
+$('add').addEventListener('click', ()=>simulate({append:true}));
+$('clear').addEventListener('click', ()=>{ sampleMeans = []; chartMeans.data.datasets[0].data=[]; chartMeans.data.datasets[1].data=[]; chartMeans.update(); });
+
+</script>
+</body>
+</html>
