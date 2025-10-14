@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apps Hub | Index</title>
+  <meta name="description" content="各種 Web アプリへのランディング＆ランチャー（HTML + JavaScript, 単一ファイル）" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect rx='18' ry='18' x='6' y='6' width='88' height='88' fill='%2300a3ff'/%3E%3Ctext x='50' y='64' font-size='52' text-anchor='middle' fill='white' font-family='Arial,Helvetica,sans-serif'%3EA%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #111319;
+      --text: #e9eef4;
+      --muted: #aab6c5;
+      --brand: #3aa7ff;
+      --brand-2: #7ee787;
+      --ring: rgba(58,167,255,.45);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --radius-lg: 22px;
+    }
+
+    /* Light mode defaults; will be overridden by .theme-dark on <html> */
+    html {
+      color-scheme: light;
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #0d1117;
+      --muted: #5b6778;
+      --brand: #0a84ff;
+      --brand-2: #0fb; /* subtle accent */
+      --ring: rgba(10,132,255,.25);
+      --shadow: 0 10px 30px rgba(16,24,40,.08);
+    }
+
+    html.theme-dark {
+      color-scheme: dark;
+      --bg: #0b0c10;
+      --panel: #10131a;
+      --text: #e9eef4;
+      --muted: #aab6c5;
+      --brand: #3aa7ff;
+      --brand-2: #7ee787;
+      --ring: rgba(58,167,255,.35);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: .02em;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; border-radius: 10px; }
+
+    .container { width: min(1100px, 92vw); margin: 0 auto; }
+
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(8px);
+      background: color-mix(in oklab, var(--bg) 75%, transparent);
+      border-bottom: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+    }
+    .nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 18px; }
+    .brand .logo { width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: var(--shadow); display: grid; place-items: center; color: white; font-weight: 900; }
+    .nav-links { display: flex; gap: 10px; align-items: center; }
+    .nav-links a { padding: 10px 12px; border-radius: 12px; color: var(--muted); }
+    .nav-links a:hover { color: var(--text); background: color-mix(in oklab, var(--text) 7%, transparent); }
+
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .btn, button.btn { border: 0; background: var(--brand); color: white; padding: 10px 14px; border-radius: 12px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); }
+    .btn.secondary { background: color-mix(in oklab, var(--text) 10%, transparent); color: var(--text); }
+    .icon-btn { border: 1px solid color-mix(in oklab, var(--text) 15%, transparent); background: var(--panel); padding: 8px 10px; border-radius: 12px; cursor: pointer; }
+
+    .menu { display: none; }
+
+    /* Hero */
+    .hero { position: relative; overflow: clip; }
+    .hero-inner { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; padding: 56px 0 42px; }
+    .hero h1 { font-size: clamp(28px, 3.6vw, 44px); line-height: 1.15; margin: 0 0 12px; }
+    .hero p.lead { color: var(--muted); font-size: clamp(14px, 2.1vw, 18px); margin: 0 0 22px; }
+    .hero .cta { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .hero-card {
+      background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 80%, transparent), var(--panel));
+      border: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+      border-radius: var(--radius-lg);
+      padding: 18px; min-height: 260px; box-shadow: var(--shadow); position: relative;
+    }
+    .hero-card .badge { position: absolute; top: 12px; right: 12px; font-size: 12px; padding: 6px 10px; border-radius: 999px; background: color-mix(in oklab, var(--brand) 22%, transparent); color: white; }
+
+    /* Sections */
+    section { padding: 54px 0; }
+    section h2 { font-size: clamp(22px, 3.1vw, 32px); margin: 0 0 14px; }
+    section p.sub { color: var(--muted); margin-top: 6px; }
+
+    .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 12px 0 18px; }
+    .toolbar input[type="search"] { padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--text) 16%, transparent); background: var(--panel); color: var(--text); min-width: 240px; }
+
+    .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip { padding: 7px 12px; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--text) 16%, transparent); background: var(--panel); color: var(--muted); cursor: pointer; user-select: none; }
+    .chip.active { color: var(--text); background: color-mix(in oklab, var(--text) 9%, transparent); }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: var(--panel); border: 1px solid color-mix(in oklab, var(--text) 12%, transparent); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); position: relative; display: grid; gap: 8px; }
+    .card h3 { margin: 4px 0 0; font-size: 18px; }
+    .card p { color: var(--muted); font-size: 14px; margin: 0; }
+    .card .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .tag { font-size: 12px; padding: 4px 8px; border-radius: 999px; background: color-mix(in oklab, var(--text) 9%, transparent); color: var(--text); }
+    .card .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; }
+    .fav { position: absolute; top: 10px; right: 10px; border: 0; background: transparent; cursor: pointer; font-size: 18px; }
+
+    .empty { color: var(--muted); text-align: center; padding: 20px; border: 1px dashed color-mix(in oklab, var(--text) 16%, transparent); border-radius: var(--radius); }
+
+    /* Footer */
+    footer { padding: 26px 0 40px; color: var(--muted); border-top: 1px solid color-mix(in oklab, var(--text) 12%, transparent); }
+
+    /* Utilities */
+    .muted { color: var(--muted); }
+
+    /* Back-to-top */
+    #backToTop { position: fixed; right: 18px; bottom: 18px; display: none; z-index: 40; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; padding-top: 26px; }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { display: none; }
+      .menu { display: inline-grid; place-items: center; }
+    }
+
+    @media (max-width: 620px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header>
+    <div class="container nav" role="navigation" aria-label="トップナビゲーション">
+      <a class="brand" href="#home" aria-label="ホーム">
+        <span class="logo" aria-hidden="true">A</span>
+        <span>Apps Hub</span>
+      </a>
+      <nav class="nav-links" aria-label="主要リンク">
+        <a href="#apps">アプリ一覧</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="actions">
+        <button id="themeToggle" class="icon-btn" aria-label="テーマ切替"><span id="themeIcon" aria-hidden="true">🌙</span></button>
+        <button id="openMenu" class="icon-btn menu" aria-expanded="false" aria-controls="mobileMenu" aria-label="メニューを開く">☰</button>
+      </div>
+    </div>
+    <div id="mobileMenu" hidden>
+      <div class="container" style="padding: 10px 0 14px; display: grid; gap: 8px;">
+        <a class="btn secondary" href="#apps">アプリ一覧</a>
+        <a class="btn secondary" href="#faq">FAQ</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <main id="home" class="hero">
+    <div class="container hero-inner">
+      <div>
+        <span class="tag" style="display:inline-flex;align-items:center;gap:8px;">🚀 各種 Web アプリへ一発アクセス</span>
+        <h1>トップページ（Index.html）<br/>リンクカードで <strong>アプリ起動</strong> を素早く</h1>
+        <p class="lead">このページは <strong>HTML + JavaScript だけ</strong> で動くランチャーです。下の <code>APPS</code> 配列を書き換えるだけで、あなたのアプリに飛べます。</p>
+        <div class="cta">
+          <a class="btn" href="#apps">アプリ一覧を見る</a>
+          <button id="howToBtn" class="btn secondary" type="button">使い方</button>
+        </div>
+      </div>
+      <div class="hero-card" aria-label="プレビュー">
+        <span class="badge">装飾プレビュー</span>
+        <div id="preview" style="height: 220px; border-radius: 14px; display: grid; place-items: center; position: relative;">
+          <svg id="orbit" viewBox="0 0 200 200" width="100%" height="100%" aria-hidden="true">
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="var(--brand)"/>
+                <stop offset="1" stop-color="var(--brand-2)"/>
+              </linearGradient>
+            </defs>
+            <circle cx="100" cy="100" r="68" fill="none" stroke="color-mix(in oklab, var(--text) 12%, transparent)" stroke-width="2" />
+            <circle id="dot" r="8" fill="url(#g1)" cx="168" cy="100" />
+          </svg>
+          <p class="muted" style="position:absolute; bottom: 12px; right: 16px; font-size: 12px;">※ ここは見た目の演出です</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Apps -->
+  <section id="apps" class="container">
+    <h2>アプリ一覧</h2>
+    <p class="sub">検索・タグ・お気に入りで素早く絞り込み。カードをクリックで新しいタブで開きます。</p>
+
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="アプリ名・説明・タグで検索" aria-label="検索" />
+      <div id="chips" class="chips" aria-label="タグフィルタ" aria-live="polite"></div>
+      <button id="clearFilters" class="btn secondary" type="button" title="検索とタグをクリア">クリア</button>
+    </div>
+
+    <div id="appsGrid" class="grid" aria-live="polite" aria-busy="true"></div>
+    <div id="emptyState" class="empty" hidden>該当するアプリが見つかりませんでした。</div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="container">
+    <h2>FAQ</h2>
+    <details>
+      <summary>自分のアプリを登録する方法</summary>
+      <p>ファイル下部の <code>APPS</code> 配列を書き換えてください。<code>title</code>（表示名）, <code>desc</code>（説明）, <code>href</code>（リンク先URL/相対パス）, <code>icon</code>（絵文字など）, <code>tags</code>（配列）を設定します。</p>
+    </details>
+    <details>
+      <summary>新しいタブで開くのをやめたい</summary>
+      <p><code>openApp</code> 関数内の <code>window.open</code> を <code>location.href = href</code> に変更してください。</p>
+    </details>
+    <details>
+      <summary>お気に入りはどこに保存されますか？</summary>
+      <p>ブラウザの <code>localStorage</code> に保存されます。別のブラウザでは共有されません。</p>
+    </details>
+  </section>
+
+  <footer>
+    <div class="container" style="display:flex; justify-content: space-between; align-items:center; gap: 12px; flex-wrap: wrap;">
+      <small>© <span id="year"></span> Apps Hub</small>
+      <small id="clock" class="muted" aria-live="polite">--:--:--</small>
+    </div>
+  </footer>
+
+  <button id="backToTop" class="btn" aria-label="ページ上部へ戻る">▲</button>
+
+  <script>
+    // =============================================================
+    // 1) あなたのアプリをここに登録してください
+    // =============================================================
+    const APPS = [
+      // 例: 実際のパス/URLに差し替えてください
+      { id: 'shm', title: '単振動の正射影デモ', desc: '円運動の投影としての単振動を可視化', href: 'Simple-harmonic-motion/tanshindo.html', icon: '🧭', tags: ['物理','可視化','学習'] },
+      { id: 'clt', title: '確率密度関数や中心極限定理シミュレーター', desc: 'サンプル平均の分布が正規に近づく様子', href: 'probability-density-function/probability-density-function.html', icon: '📊', tags: ['確率','統計','学習'] },
+     // --- ここに追記 ---
+      // { id: 'unique-id', title: 'タイトル', desc: '説明', href: '相対パス or https://...', icon: '🔗', tags: ['タグ1','タグ2'] },
+    ];
+
+    // =============================================================
+    // 2) テーマ切替・UI 雑多ユーティリティ
+    // =============================================================
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    const THEME_KEY = 'apps-theme';
+    const FAV_KEY = 'apps-favorites';
+
+    const themeToggleBtn = $('#themeToggle');
+    const themeIcon = $('#themeIcon');
+    const backToTopBtn = $('#backToTop');
+    const mobileMenuBtn = $('#openMenu');
+    const mobileMenu = $('#mobileMenu');
+
+    const yearEl = $('#year');
+    const clockEl = $('#clock');
+
+    // 初期化：テーマ
+    function applyTheme(theme){
+      const isDark = theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('theme-dark', isDark);
+      themeIcon.textContent = isDark ? '🌞' : '🌙';
+    }
+    function initTheme(){
+      const saved = localStorage.getItem(THEME_KEY) || 'auto';
+      applyTheme(saved);
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(saved));
+      themeToggleBtn.addEventListener('click', () => {
+        const cur = localStorage.getItem(THEME_KEY) || 'auto';
+        const next = cur === 'dark' ? 'light' : (cur === 'light' ? 'auto' : 'dark');
+        localStorage.setItem(THEME_KEY, next);
+        applyTheme(next);
+      });
+    }
+
+    // 年と時計
+    function initFooter(){
+      yearEl.textContent = new Date().getFullYear();
+      setInterval(() => {
+        const d = new Date();
+        const pad = n => String(n).padStart(2,'0');
+        clockEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      }, 500);
+    }
+
+    // Back to top
+    function initBackToTop(){
+      window.addEventListener('scroll', () => {
+        backToTopBtn.style.display = window.scrollY > 600 ? 'block' : 'none';
+      });
+      backToTopBtn.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+    }
+
+    // Mobile menu
+    function initMobileMenu(){
+      mobileMenuBtn.addEventListener('click', () => {
+        const open = mobileMenu.hasAttribute('hidden');
+        mobileMenu.toggleAttribute('hidden', !open);
+        mobileMenuBtn.setAttribute('aria-expanded', String(open));
+      });
+      // 外側クリックで閉じる
+      document.addEventListener('click', (e) => {
+        if (!mobileMenu.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+          mobileMenu.setAttribute('hidden','');
+          mobileMenuBtn.setAttribute('aria-expanded','false');
+        }
+      });
+    }
+
+    // ヒーローの装飾アニメ
+    function initOrbit(){
+      const dot = $('#dot');
+      let t = 0;
+      function frame(){
+        t += 0.02;
+        const r = 68; const cx = 100; const cy = 100;
+        dot.setAttribute('cx', cx + r*Math.cos(t));
+        dot.setAttribute('cy', cy + r*Math.sin(t));
+        requestAnimationFrame(frame);
+      }
+      frame();
+    }
+
+    // =============================================================
+    // 3) アプリ一覧：検索・タグ・お気に入り
+    // =============================================================
+    const appsGrid = $('#appsGrid');
+    const emptyState = $('#emptyState');
+    const chips = $('#chips');
+    const searchInput = $('#searchInput');
+    const clearFiltersBtn = $('#clearFilters');
+
+    const favSet = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
+    let activeTags = new Set();
+
+    function getAllTags(){
+      const s = new Set();
+      APPS.forEach(a => (a.tags||[]).forEach(t => s.add(t)));
+      return Array.from(s).sort((a,b)=>a.localeCompare(b,'ja'));
+    }
+
+    function renderChips(){
+      chips.innerHTML = '';
+      for (const tag of getAllTags()){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chip' + (activeTags.has(tag) ? ' active' : '');
+        btn.textContent = `#${tag}`;
+        btn.setAttribute('aria-pressed', activeTags.has(tag));
+        btn.addEventListener('click', () => {
+          if (activeTags.has(tag)) activeTags.delete(tag); else activeTags.add(tag);
+          renderChips();
+          renderApps();
+        });
+        chips.appendChild(btn);
+      }
+    }
+
+    function appMatches(app, q){
+      if (!q && activeTags.size === 0) return true;
+      const text = `${app.title} ${app.desc} ${(app.tags||[]).join(' ')}`.toLowerCase();
+      const hitQ = q ? text.includes(q.toLowerCase()) : true;
+      const hitTags = activeTags.size ? (app.tags||[]).some(t => activeTags.has(t)) : true;
+      return hitQ && hitTags;
+    }
+
+    function openApp(href){
+      window.open(href, '_blank', 'noopener');
+    }
+
+    function toggleFav(id){
+      if (favSet.has(id)) favSet.delete(id); else favSet.add(id);
+      localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favSet)));
+      renderApps();
+    }
+
+    function renderApps(){
+      const q = searchInput.value.trim();
+      const items = APPS.filter(a => appMatches(a, q))
+        .sort((a,b) => {
+          // お気に入り優先 → タイトル昇順
+          const fa = favSet.has(a.id) ? 0 : 1;
+          const fb = favSet.has(b.id) ? 0 : 1;
+          if (fa !== fb) return fa - fb;
+          return a.title.localeCompare(b.title, 'ja');
+        });
+
+      appsGrid.innerHTML = '';
+      emptyState.hidden = items.length !== 0;
+
+      for (const app of items){
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.setAttribute('role','group');
+        card.setAttribute('aria-label', app.title);
+
+        const favBtn = document.createElement('button');
+        favBtn.className = 'fav';
+        favBtn.type = 'button';
+        favBtn.title = 'お気に入り切替';
+        favBtn.textContent = favSet.has(app.id) ? '★' : '☆';
+        favBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFav(app.id); });
+        card.appendChild(favBtn);
+
+        const icon = document.createElement('div');
+        icon.style.fontSize = '26px';
+        icon.textContent = app.icon || '🔗';
+        card.appendChild(icon);
+
+        const h3 = document.createElement('h3');
+        h3.textContent = app.title;
+        card.appendChild(h3);
+
+        const p = document.createElement('p');
+        p.textContent = app.desc || '';
+        card.appendChild(p);
+
+        if (app.tags && app.tags.length){
+          const tagRow = document.createElement('div');
+          tagRow.className = 'tags';
+          for (const t of app.tags){
+            const tag = document.createElement('span');
+            tag.className = 'tag';
+            tag.textContent = `#${t}`;
+            tagRow.appendChild(tag);
+          }
+          card.appendChild(tagRow);
+        }
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        const open = document.createElement('a');
+        open.className = 'btn';
+        open.textContent = '開く';
+        open.href = app.href;
+        open.target = '_blank';
+        open.rel = 'noopener';
+        row.appendChild(open);
+
+        const hint = document.createElement('span');
+        hint.className = 'muted';
+        hint.textContent = new URL(app.href, location.href).href.replace(location.origin, '');
+        row.appendChild(hint);
+
+        card.appendChild(row);
+
+        // カード全体クリックでも開く
+        card.addEventListener('click', (e) => {
+          const tagName = (e.target.closest('a,button')||{}).tagName;
+          if (tagName === 'A' || tagName === 'BUTTON') return; // ボタン類はそのまま
+          openApp(app.href);
+        });
+
+        appsGrid.appendChild(card);
+      }
+    }
+
+    function initFilters(){
+      renderChips();
+      renderApps();
+      searchInput.addEventListener('input', renderApps);
+      clearFiltersBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        activeTags.clear();
+        renderChips();
+        renderApps();
+      });
+    }
+
+    // =============================================================
+    // 4) 使い方（簡易モーダル）
+    // =============================================================
+    function initHowTo(){
+      const btn = document.getElementById('howToBtn');
+      btn.addEventListener('click', () => {
+        alert(`\n【登録方法】\n1) このファイルをエディタで開く\n2) APPS 配列に { id, title, desc, href, icon, tags } を追加/編集\n3) 保存してブラウザで開くだけ（ローカルでもOK）\n\n【コツ】\n- href は相対パス推奨（この index.html と同じリポジトリに置く）\n- よく使うアプリは「☆」でお気に入り登録（並びが先頭になります）\n- タグを賢く付けると検索と絞り込みが捗ります`);
+      });
+    }
+
+    // =============================================================
+    // 5) 初期化
+    // =============================================================
+    function init(){
+      // テーマ
+      initTheme();
+      // フッター
+      (function(){
+        const yearEl = document.getElementById('year');
+        const clockEl = document.getElementById('clock');
+        yearEl.textContent = new Date().getFullYear();
+        setInterval(() => {
+          const d = new Date();
+          const pad = n => String(n).padStart(2,'0');
+          clockEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        }, 500);
+      })();
+      // Back to top
+      (function(){
+        const backToTopBtn = document.getElementById('backToTop');
+        window.addEventListener('scroll', () => {
+          backToTopBtn.style.display = window.scrollY > 600 ? 'block' : 'none';
+        });
+        backToTopBtn.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+      })();
+      // Mobile menu
+      (function(){
+        const mobileMenuBtn = document.getElementById('openMenu');
+        const mobileMenu = document.getElementById('mobileMenu');
+        mobileMenuBtn.addEventListener('click', () => {
+          const open = mobileMenu.hasAttribute('hidden');
+          mobileMenu.toggleAttribute('hidden', !open);
+          mobileMenuBtn.setAttribute('aria-expanded', String(open));
+        });
+        document.addEventListener('click', (e) => {
+          if (!mobileMenu.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+            mobileMenu.setAttribute('hidden','');
+            mobileMenuBtn.setAttribute('aria-expanded','false');
+          }
+        });
+      })();
+      // 装飾アニメ
+      initOrbit();
+      // アプリ描画
+      initFilters();
+      // 使い方
+      initHowTo();
+    }
+
+    // ヒーローの装飾アニメ実装
+    function initOrbit(){
+      const dot = document.getElementById('dot');
+      let t = 0;
+      function frame(){
+        t += 0.02;
+        const r = 68; const cx = 100; const cy = 100;
+        dot.setAttribute('cx', cx + r*Math.cos(t));
+        dot.setAttribute('cy', cy + r*Math.sin(t));
+        requestAnimationFrame(frame);
+      }
+      frame();
+    }
+
+    // 起動
+    init();
+  </script>
+</body>
+</html>
