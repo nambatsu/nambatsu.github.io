@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>単振動＝円運動の正射影（横並び・同期表示）</title>
+  <style>
+    :root {
+      --bg: #f8fafc; --panel:#fff; --fg:#0f172a; --muted:#64748b; --line:#e5e7eb;
+      --accent:#2563eb; --accent2:#16a34a; --shadow:0 6px 20px rgba(2,6,23,.08);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;color:var(--fg);background:linear-gradient(180deg,#f8fafc,#eef2ff 60%)}
+    header{padding:18px 20px 6px;text-align:center}
+    header h1{margin:0;font-size:1.35rem;font-weight:800}
+    header p{margin:6px 0 0;color:var(--muted)}
+    .wrap{max-width:1200px;margin:14px auto 24px;padding:0 14px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+
+    .controls{display:grid;gap:10px;grid-template-columns:repeat(12,1fr);align-items:center;padding:14px;margin-bottom:12px}
+    .controls .group{grid-column:span 6;display:grid;grid-template-columns:140px 1fr 70px;gap:8px;align-items:center}
+    .controls .group.compact{grid-template-columns:auto auto auto auto auto 1fr;gap:12px}
+    .controls label{color:var(--muted);font-size:.92rem}
+    .controls output{text-align:right;font-variant-numeric:tabular-nums}
+    button,.toggle{border:1px solid var(--line);background:#fff;color:var(--fg);padding:8px 12px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+    .primary{background:var(--accent);color:#fff;border-color:transparent}
+    .danger{background:#ef4444;color:#fff;border-color:transparent}
+
+    .row{display:grid;grid-template-columns:1.3fr 1fr;gap:0} /* 隙間ゼロでぴったり並べる */
+    .canvasBox{position:relative;padding:12px}
+    .canvasBox h3{margin:4px 0 10px;font-size:1rem;color:var(--muted);font-weight:800}
+    canvas{display:block;border-radius:14px;background:#fff;border:1px solid var(--line)}
+
+    /* 2枚のキャンバス高さを完全同期 */
+    .synced{display:grid;grid-template-columns:1fr 1fr;gap:0}
+
+    .legend{position:absolute;inset:auto 12px 12px auto;background:rgba(255,255,255,.9);padding:6px 10px;border-radius:10px;border:1px solid var(--line);font-size:.85rem;color:var(--muted)}
+    .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+    .eq{padding:10px 14px;font-size:.95rem;color:var(--muted);border-top:1px dashed var(--line)}
+
+    @media (max-width:920px){.row{grid-template-columns:1fr}.canvasBox{padding:10px}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>単振動 = 円運動の正射影（横並び・直結表示）</h1>
+    <p>左の円運動の投影が、右のグラフに<strong>そのまま</strong>書き込まれていくように見える同期表示です。</p>
+  </header>
+
+  <div class="wrap">
+    <section class="panel controls" aria-label="操作パネル">
+      <div style="grid-column:span 12;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button id="playPause" class="primary">▶ 再生</button>
+        <button id="reset" class="danger">↺ リセット</button>
+        <label class="toggle"><input type="checkbox" id="showGuides" checked> ガイド表示</label>
+        <label class="toggle"><input type="checkbox" id="showTrace" checked> サイン波トレース</label>
+        <label class="toggle"><input type="checkbox" id="lockHeights" checked> 高さを同期</label>
+      </div>
+      <div class="group"><label for="omega">角速度 ω (rad/s)</label><input id="omega" type="range" min="0.2" max="6" step="0.1" value="1.6" /><output id="omegaVal">1.6</output></div>
+      <div class="group"><label for="radius">半径 R (px)</label><input id="radius" type="range" min="40" max="180" step="1" value="110" /><output id="radiusVal">110</output></div>
+      <div class="group"><label for="phi">初期位相 φ (rad)</label><input id="phi" type="range" min="-3.1416" max="3.1416" step="0.01" value="0" /><output id="phiVal">0.00</output></div>
+      <div class="group compact"><label>投影軸:</label><label><input type="radio" name="axis" value="x" checked> x軸</label><label><input type="radio" name="axis" value="y"> y軸</label><span></span></div>
+    </section>
+
+    <div class="row">
+      <section class="panel canvasBox" aria-label="円と投影">
+        <h3>円運動と投影（左）</h3>
+        <canvas id="mainCanvas" aria-label="円運動キャンバス"></canvas>
+        <div class="legend"><div><span class="dot" style="background:#2563eb"></span>回転点</div><div><span class="dot" style="background:#16a34a"></span>投影点</div></div>
+        <div class="eq" id="equationArea">x(t) = R cos(ωt + φ)</div>
+      </section>
+      <section class="panel canvasBox" aria-label="グラフ">
+        <h3>投影の時間変化（右）</h3>
+        <canvas id="graphCanvas" aria-label="サイン波グラフ"></canvas>
+        <div class="eq">左端（グラフ開始点）が左の投影位置と<strong>同じ高さ</strong>になるよう同期しています（スケール変換なし）。</div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ===== DOM =====
+    const main = document.getElementById('mainCanvas');
+    const graph = document.getElementById('graphCanvas');
+    const playBtn = document.getElementById('playPause');
+    const resetBtn = document.getElementById('reset');
+    const omegaIn = document.getElementById('omega');
+    const radiusIn = document.getElementById('radius');
+    const phiIn = document.getElementById('phi');
+    const omegaVal = document.getElementById('omegaVal');
+    const radiusVal = document.getElementById('radiusVal');
+    const phiVal = document.getElementById('phiVal');
+    const guidesIn = document.getElementById('showGuides');
+    const traceIn = document.getElementById('showTrace');
+    const lockHeightsIn = document.getElementById('lockHeights');
+    const eqArea = document.getElementById('equationArea');
+    const axisRadios = Array.from(document.querySelectorAll('input[name="axis"]'));
+
+    // ===== State =====
+    let dpr = Math.max(1, window.devicePixelRatio || 1);
+    let paused = true;
+    let omega = parseFloat(omegaIn.value);
+    let R = parseFloat(radiusIn.value);
+    let phi = parseFloat(phiIn.value);
+    let axis = 'x';
+    let showGuides = guidesIn.checked;
+    let showTrace = traceIn.checked;
+    let lockHeights = lockHeightsIn.checked;
+
+    let t0 = performance.now() / 1000; // seconds
+    let t = 0; // animation time since reset
+
+    // Render radius in device pixels (actual drawn半径)
+    let renderR = 100; // updated on draw
+    let cx=0, cy=0, px=0, py=0; // for connector alignment
+
+    // Trace buffer
+    const trace = [];
+    const TIME_WINDOW = 10; // s
+
+    // ===== Utils =====
+    const fmt = x => (Math.round(x*100)/100).toFixed(2);
+
+    function setEquation(){
+      eqArea.textContent = axis === 'x' ? 'x(t) = R cos(ωt + φ)' : 'y(t) = R sin(ωt + φ)';
+    }
+
+    function fitCanvasSameHeight(h){
+      // Both canvases share the same content height h (CSS pixels)
+      for(const cnv of [main, graph]){
+        // width follows parent box; height = h
+        const box = cnv.parentElement.getBoundingClientRect();
+        const w = Math.max(300, box.width - 24);
+        cnv.style.width = w + 'px';
+        cnv.style.height = h + 'px';
+        cnv.width = Math.round(w * dpr);
+        cnv.height = Math.round(h * dpr);
+      }
+    }
+
+    function resizeAll(){
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rowBox = document.querySelector('.row').getBoundingClientRect();
+      // target height heuristic so both canvases match visually
+      const targetH = Math.max(280, Math.min(540, rowBox.width * 0.28));
+      if(lockHeights) fitCanvasSameHeight(targetH); else {
+        // fallback: individual fit (legacy)
+        const fit = (cnv)=>{const box=cnv.parentElement.getBoundingClientRect();const w=Math.max(300, box.width-24);const h=Math.max(260, Math.min(520, box.width*0.72));cnv.style.width=w+'px';cnv.style.height=h+'px';cnv.width=Math.round(w*dpr);cnv.height=Math.round(h*dpr)};
+        fit(main); fit(graph);
+      }
+    }
+
+    window.addEventListener('resize', resizeAll);
+    resizeAll();
+
+    // ===== Draw helpers =====
+    function line(ctx,x1,y1,x2,y2,color,width=1){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineWidth=width*dpr;ctx.strokeStyle=color;ctx.stroke();}
+    function circle(ctx,x,y,r,color,fill=false,width=1){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2); if(fill){ctx.fillStyle=color;ctx.fill()}else{ctx.lineWidth=width*dpr;ctx.strokeStyle=color;ctx.stroke()}}
+
+    // ===== Main (circle & projection) =====
+    function drawMain(){
+      const ctx = main.getContext('2d');
+      ctx.clearRect(0,0,main.width, main.height);
+      const W=main.width, H=main.height; cx=W/2; cy=H/2;
+      renderR = Math.min(R * dpr, Math.min(W,H)*0.42);
+
+      // circle & axes
+      circle(ctx,cx,cy,renderR,'#e5e7eb',false,2);
+      if(showGuides){ line(ctx,cx-renderR*1.15,cy,cx+renderR*1.15,cy,'#cbd5e1',1); line(ctx,cx,cy-renderR*1.15,cx,cy+renderR*1.15,'#cbd5e1',1); }
+
+      const theta = omega * t + phi;
+      px = cx + renderR*Math.cos(theta);
+      py = cy - renderR * Math.sin(theta);
+
+      // Emphasize projection axis
+      if(axis==='x') line(ctx,cx-renderR*1.25,cy,cx+renderR*1.25,cy,'#94a3b8',2.5); else line(ctx,cx,cy-renderR*1.25,cx,cy+renderR*1.25,'#94a3b8',2.5);
+
+      // Guide from rotating point
+      if(showGuides){ const qx = (axis==='x')?px:cx; const qy = (axis==='y')?py:cy; line(ctx,px,py,qx,qy,'#d1d5db',1.2); }
+
+      // Points
+      circle(ctx,px,py,6*dpr,'#2563eb',true);
+      const qx = (axis==='x')?px:cx; const qy = (axis==='y')?py:cy; circle(ctx,qx,qy,6*dpr,'#16a34a',true);
+
+      // Connector marker at right edge to align with graph left edge
+      const markY = (axis==='x')?cy : py; // the height we want to match
+      line(ctx, W-12*dpr, markY, W-2*dpr, markY, '#16a34a', 3); // small tick at right border
+
+      // Labels
+      ctx.fillStyle='#64748b'; ctx.font=`${Math.max(12,13*dpr)}px system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Meiryo,sans-serif`;
+      ctx.fillText(`θ = ${fmt(omega*t+phi)} rad`, 14*dpr, 22*dpr);
+      if(axis==='x') ctx.fillText(`x = ${fmt((px-cx)/dpr)} px`, 14*dpr, 42*dpr); else ctx.fillText(`y = ${fmt((cy - py)/dpr)} px`, 14*dpr, 42*dpr);
+    }
+
+    // ===== Graph (time vs projection) =====
+    function drawGraph(){
+      const ctx = graph.getContext('2d');
+      ctx.clearRect(0,0,graph.width, graph.height);
+      const W=graph.width, H=graph.height;
+      const pad = 14*dpr;
+      const gx0 = pad; // left margin
+      const gx1 = W - pad; // right margin
+      const gy0 = pad; const gy1 = H - pad;
+
+      // Frame
+      ctx.strokeStyle='#e5e7eb'; ctx.lineWidth=1*dpr; ctx.strokeRect(gx0, gy0, gx1-gx0, gy1-gy0);
+
+      // Centerline height is aligned to circle center height
+      const midY = (gy0 + gy1)/2; // reference 0 level
+      line(ctx, gx0, midY, gx1, midY, '#cbd5e1', 1);
+
+      // Remove old points (time window)
+      const nowS = performance.now()/1000 - t0; const tMax = nowS; const tMin = tMax - TIME_WINDOW; while(trace.length && trace[0].T < tMin) trace.shift();
+
+      // grid (vertical each second)
+      ctx.fillStyle='#94a3b8'; ctx.font=`${Math.max(10,12*dpr)}px system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Meiryo,sans-serif`;
+      for(let s=Math.ceil(tMin); s<=Math.floor(tMax); s++){
+        const x = gx0 + (s - tMin)/(tMax - tMin) * (gx1 - gx0);
+        line(ctx, x, gy0, x, gy1, '#eef2f7', 1);
+        ctx.textAlign='center'; ctx.fillText(`${(s - tMax).toFixed(0)}s`, x, gy1 + 12*dpr);
+      }
+
+      if(!showTrace || trace.length < 2) {
+        // 連結マーカー（左端）だけ描画
+        const feedY = getFeedY(midY);
+        line(ctx, gx0-10*dpr, feedY, gx0, feedY, '#16a34a', 3);
+        return;
+      }
+
+      // y-scale: use renderR directly (no normalization)
+      const ampPx = renderR; // device px
+
+      // Polyline
+      ctx.beginPath();
+      for(let i=0;i<trace.length;i++){
+        const p = trace[i];
+        const x = gx0 + (p.T - tMin)/(tMax - tMin) * (gx1 - gx0);
+        const y = midY - (p.V / ampPx) * ampPx; // p.V already in pixels relative to center
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.lineWidth=2*dpr; ctx.strokeStyle='#2563eb'; ctx.stroke();
+
+      // Current marker
+      const last = trace[trace.length-1];
+      const curX = gx0 + (last.T - tMin)/(tMax - tMin) * (gx1 - gx0);
+      const curY = midY - (last.V / ampPx) * ampPx;
+      circle(ctx, curX, curY, 5*dpr, '#16a34a', true);
+
+      // 左端のフィードマーカー（円の投影と同じ高さ）
+      const feedY = getFeedY(midY);
+      line(ctx, gx0-10*dpr, feedY, gx0, feedY, '#16a34a', 3);
+    }
+
+    function getFeedY(midY){
+      // Compute the y position at graph's left border equivalent to the current projection height
+      const projPix = (axis==='x') ? 0 : (cy - py); // if x-axis projection, height equals center (0); if y-axis, use y displacement
+      // ここでは円キャンバスとグラフの中心線を合わせているため、単純に midY - projPix でOK
+      return midY - projPix;
+    }
+
+    // ===== Animation Loop =====
+    let lastTS = performance.now();
+    function loop(ts){
+      const dt = (ts - lastTS)/1000; lastTS = ts; if(!paused) t += dt;
+
+      // update trace with current projection value in PIXELS relative to center
+      const theta = omega * t + phi;
+      const valPx = (axis==='x') ? renderR*Math.cos(theta) : renderR*Math.sin(theta);
+      const absNow = performance.now()/1000 - t0;
+      trace.push({T: absNow, V: valPx});
+
+      drawMain();
+      drawGraph();
+      requestAnimationFrame(loop);
+    }
+
+    // ===== UI =====
+    function setPlayState(next){ paused = !next; playBtn.textContent = paused ? '▶ 再生' : '⏸ 一時停止'; playBtn.classList.toggle('primary', paused); }
+    playBtn.addEventListener('click', ()=> setPlayState(paused));
+    resetBtn.addEventListener('click', ()=>{ t = 0; trace.length = 0; });
+
+    omegaIn.addEventListener('input', e=>{ omega=parseFloat(e.target.value); omegaVal.textContent=omega.toFixed(1); });
+    radiusIn.addEventListener('input', e=>{ R=parseFloat(e.target.value); radiusVal.textContent=R.toFixed(0); });
+    phiIn.addEventListener('input', e=>{ phi=parseFloat(e.target.value); phiVal.textContent=fmt(phi); });
+    guidesIn.addEventListener('change', e=> showGuides = e.target.checked);
+    traceIn.addEventListener('change', e=> showTrace = e.target.checked);
+    lockHeightsIn.addEventListener('change', e=>{ lockHeights = e.target.checked; resizeAll(); });
+
+    axisRadios.forEach(r => r.addEventListener('change', ()=>{ axis = axisRadios.find(x=>x.checked).value; setEquation(); }));
+
+    setEquation(); omegaVal.textContent=omega.toFixed(1); radiusVal.textContent=R.toFixed(0); phiVal.textContent=fmt(phi);
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
