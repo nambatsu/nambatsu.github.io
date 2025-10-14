@@ -326,6 +326,8 @@ const showBaseEl = $('showBase');
 const basePanel = $('basePanel');
 
 let sampleMeans = []; // 追加モード用の蓄積
+// アニメーション用状態
+let anim = { running:false, rafId:null, target:0, added:0, batch:200, fixedH:null, sum:0, sumsq:0, density:true };
 
 function updateParamVisibility(){
   const dist = distEl.value;
@@ -442,11 +444,128 @@ function simulate({append=false}){
 
 }
 
-
 $('run').addEventListener('click', ()=>simulate({append:false}));
 $('add').addEventListener('click', ()=>simulate({append:true}));
 $('clear').addEventListener('click', ()=>{ sampleMeans = []; chartMeans.data.datasets[0].data=[]; chartMeans.data.datasets[1].data=[]; chartMeans.update(); });
 
+// === 追加：アニメーション制御 ===
+(function(){
+  const speedEl = document.getElementById('speed');
+  const speedLbl = document.getElementById('speedLbl');
+  if(speedEl){ speedEl.addEventListener('input', ()=>{ speedLbl.textContent = speedEl.value; anim.batch = parseInt(speedEl.value,10); }); }
+
+  const btnStart = document.getElementById('animStart');
+  const btnPause = document.getElementById('animPause');
+  const btnResume = document.getElementById('animResume');
+  const btnStop = document.getElementById('animStop');
+  const animToggle = document.getElementById('animToggle');
+
+  if(btnStart) btnStart.addEventListener('click', ()=>{ if(!animToggle.checked){ simulate({append:false}); } else { startAnimation(); } });
+  if(btnPause) btnPause.addEventListener('click', ()=>{ if(anim.running){ cancelAnimationFrame(anim.rafId); anim.running=false; }});
+  if(btnResume) btnResume.addEventListener('click', ()=>{ if(!anim.running && anim.added<anim.target){ anim.running=true; anim.rafId=requestAnimationFrame(loop); }});
+  if(btnStop) btnStop.addEventListener('click', ()=>{ stopAnimation(true); resetMeansChart(); });
+
+  // 既存のクリアに追加で停止処理
+  const clearBtn = document.getElementById('clear');
+  if(clearBtn){ clearBtn.addEventListener('click', ()=>{ stopAnimation(true); resetMeansChart(); }); }
+
+  function resetMeansChart(){
+    sampleMeans = [];
+    chartMeans.data.datasets[0].data=[];
+    chartMeans.data.datasets[1].data=[];
+    chartMeans.update();
+    document.getElementById('empMu').textContent='–';
+    document.getElementById('empSd').textContent='–';
+  }
+
+  function startAnimation(){
+    stopAnimation(true);
+    const dist = distEl.value;
+    let a = parseFloat(aEl.value);
+    let b = parseFloat(bEl.value);
+    let n = Math.max(1, parseInt(nEl.value,10)||1);
+    let M = Math.max(100, parseInt(MEl.value,10)||100);
+    if(dist==='uniform' && a>=b){ const t=a; a=b; b=t; aEl.value=a; bEl.value=b; }
+    if(dist==='bernoulli'){ b = Math.min(0.999, Math.max(0.001, b)); bEl.value = b; }
+    if(dist==='exponential' || dist==='poisson'){ b = Math.max(1e-6, b); bEl.value = b; }
+
+    const {mu, v} = moments(dist, a, b);
+    const sdMean = Math.sqrt(v/Math.max(1,n));
+    const xmin = mu - 6*sdMean;
+    const xmax = mu + 6*sdMean;
+
+    anim.fixedH = fixedHistogramInit([xmin, xmax], 50);
+    anim.target = M; anim.added=0; anim.batch = parseInt(speedEl.value,10);
+    anim.sum=0; anim.sumsq=0; anim.density = asDensityEl.checked;
+    sampleMeans = [];
+
+    // 正規曲線
+    const normalPts = normalCurvePoints(mu, sdMean, [xmin, xmax], (anim.fixedH.width/3));
+    chartMeans.data.datasets[1].data = normalPts;
+    chartMeans.data.datasets[0].data = [];
+    chartMeans.options.scales.y.title.text = anim.density? '密度' : '頻度';
+    chartMeans.update();
+
+    // 下段の理論曲線も更新
+    renderBaseTheory();
+
+    anim.running = true;
+    anim.rafId = requestAnimationFrame(loop);
+
+    function drawBatch(B){
+      for(let i=0;i<B;i++){
+        let s=0; for(let j=0;j<n;j++) s += drawOne(dist, a, b);
+        const m = s/n; sampleMeans.push(m);
+        anim.sum += m; anim.sumsq += m*m;
+        fixedHistogramAdd(anim.fixedH, m);
+      }
+      anim.added += B;
+    }
+
+    function loop(){
+      if(!anim.running) return;
+      const remain = anim.target - anim.added;
+      if(remain<=0){ anim.running=false; return; }
+      const B = Math.min(anim.batch, remain);
+      drawBatch(B);
+      const heights = fixedHistogramHeights(anim.fixedH, anim.density);
+      chartMeans.data.datasets[0].data = stepLineFromFixed(anim.fixedH, heights);
+      const m = anim.sum/anim.added;
+      const sd = Math.sqrt(Math.max(0, anim.sumsq/anim.added - m*m));
+      document.getElementById('empMu').textContent = fmt(m);
+      document.getElementById('empSd').textContent = fmt(sd);
+      chartMeans.update('none');
+      anim.rafId = requestAnimationFrame(loop);
+    }
+  }
+
+  function stopAnimation(clear){
+    if(anim.rafId) cancelAnimationFrame(anim.rafId);
+    anim.running=false; anim.rafId=null;
+    if(clear){ anim.fixedH=null; anim.added=0; anim.target=0; anim.sum=0; anim.sumsq=0; }
+  }
+
+  function renderBaseTheory(){
+    const dist = distEl.value;
+    let a = parseFloat(aEl.value);
+    let b = parseFloat(bEl.value);
+    if(dist==='uniform' && a>=b){ const t=a; a=b; b=t; }
+    const {mu, v} = moments(dist, a, b);
+    const sd = Math.sqrt(Math.max(v, 1e-12));
+    let xmin, xmax, binw;
+    switch(dist){
+      case 'uniform':{ const m = (b-a)*0.15; xmin=a-m; xmax=b+m; binw=Math.max((b-a)/10,1e-3); break; }
+      case 'exponential':{ xmin=0; xmax=(mu+6*sd); binw=(xmax-xmin)/40; break; }
+      case 'bernoulli':{ xmin=-0.5; xmax=1.5; binw=1; break; }
+      case 'poisson':{ const lam=Math.max(1e-6,b); const r=5*Math.sqrt(lam); xmin=Math.max(0, lam-r); xmax=lam+r; binw=1; break; }
+    }
+    const theory = baseTheoryPoints(dist, a, b, [xmin, xmax], binw);
+    chartBase.data.datasets[0].data = theory.pts;
+    chartBase.data.datasets[0].stepped = !!theory.stepped;
+    chartBase.update();
+  }
+
+})();
 </script>
 </body>
 </html>
