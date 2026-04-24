@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ドップラー効果 2Dアニメーション</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: rgba(255, 255, 255, 0.96);
+      --line: rgba(0, 0, 0, 0.12);
+      --text: #162338;
+      --sub: #5f6f89;
+      --accent: #2f86e6;
+      --accent2: #1fa97d;
+      --danger: #d95c5c;
+      --observer: #f59f3a;
+      --reflect: #8a63ff;
+      --plate: #39475c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: min(1280px, 100%);
+      display: grid;
+      grid-template-columns: 430px 1fr;
+      gap: 18px;
+    }
+
+    .panel,
+    .stage-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+    }
+
+    .panel { padding: 18px; }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0 0 8px;
+    }
+
+    p.desc {
+      margin: 0 0 16px;
+      color: var(--sub);
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+
+    .control {
+      margin: 16px 0;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .value {
+      color: var(--accent2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .buttons.compact {
+      margin-top: 0;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #ffffff;
+      background: linear-gradient(135deg, #2f86e6, #1fa97d);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    button.secondary {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--line);
+    }
+
+    button.sound {
+      background: linear-gradient(135deg, #f59f3a, #ef6c57);
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .stat .k {
+      display: block;
+      color: var(--sub);
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
+    .stat .v {
+      font-size: 1.01rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      margin-top: 16px;
+      color: var(--sub);
+      line-height: 1.65;
+      font-size: 0.92rem;
+    }
+
+    .stage-wrap {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    canvas.dragging { cursor: grabbing; }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: var(--sub);
+      font-size: 0.9rem;
+      padding: 0 4px 2px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .blue { background: #71baff; }
+    .green { background: #36b98f; }
+    .red { background: #d95c5c; }
+    .orange { background: #f59f3a; }
+    .purple { background: #8a63ff; }
+    .gray { background: #39475c; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <h1>ドップラー効果 2Dアニメーション</h1>
+      <p class="desc">
+        動く音源が一定時間ごとに波を出し、各波が二次元の円として広がります。<br>
+        観測者と反射板はドラッグで配置でき、どちらにも速度を持たせられます。
+      </p>
+
+      <div class="control">
+        <div class="label-row">
+          <span>音源の速さ</span>
+          <span class="value" id="sourceSpeedValue">120 px/s</span>
+        </div>
+        <input id="sourceSpeed" type="range" min="0" max="360" step="1" value="120" />
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>波の速さ</span>
+          <span class="value" id="waveSpeedValue">180 px/s</span>
+        </div>
+        <input id="waveSpeed" type="range" min="0" max="360" step="1" value="180" />
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>振動数（周波数）</span>
+          <span class="value" id="displayFrequencyValue">2.50 Hz</span>
+        </div>
+        <input id="displayFrequency" type="range" min="1.00" max="10.00" step="0.01" value="2.50" />
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>観測者の速さ</span>
+          <span class="value" id="observerSpeedValue">60 px/s</span>
+        </div>
+        <input id="observerSpeed" type="range" min="0" max="240" step="1" value="60" />
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>観測者の向き</span>
+          <span class="value" id="observerDirectionValue">右向き</span>
+        </div>
+        <div class="buttons compact">
+          <button id="observerLeftBtn" class="secondary">← 左へ</button>
+          <button id="observerRightBtn" class="secondary">右へ →</button>
+        </div>
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>反射板の表示</span>
+          <span class="value" id="reflectorEnabledState">有効</span>
+        </div>
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;">
+          <input id="reflectorEnabled" type="checkbox" checked style="width:18px; height:18px; accent-color:#2f86e6; cursor:pointer;" />
+          <span>反射板を表示して使う</span>
+        </label>
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>反射板の速さ</span>
+          <span class="value" id="reflectorSpeedValue">80 px/s</span>
+        </div>
+        <input id="reflectorSpeed" type="range" min="0" max="240" step="1" value="80" />
+      </div>
+
+      <div class="control">
+        <div class="label-row">
+          <span>反射板の向き</span>
+          <span class="value" id="reflectorDirectionValue">右向き</span>
+        </div>
+        <div class="buttons compact">
+          <button id="reflectorLeftBtn" class="secondary">← 左へ</button>
+          <button id="reflectorRightBtn" class="secondary">右へ →</button>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggleBtn">一時停止</button>
+        <button id="resetBtn" class="secondary">リセット</button>
+        <button id="soundBtn" class="sound">音を再生</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="k">音源速度 / 波速度</span>
+          <span class="v" id="ratioValue">0.67</span>
+        </div>
+        <div class="stat">
+          <span class="k">状態</span>
+          <span class="v" id="stateValue">通常</span>
+        </div>
+        <div class="stat">
+          <span class="k">前方の波長</span>
+          <span class="v" id="frontLambda">24.0 px</span>
+        </div>
+        <div class="stat">
+          <span class="k">後方の波長</span>
+          <span class="v" id="backLambda">96.0 px</span>
+        </div>
+        <div class="stat">
+          <span class="k">基準音の高さ</span>
+          <span class="v" id="baseFrequency">250.0 Hz</span>
+        </div>
+        <div class="stat">
+          <span class="k">直接音</span>
+          <span class="v" id="directFrequency">未到達</span>
+        </div>
+        <div class="stat">
+          <span class="k">反射音</span>
+          <span class="v" id="reflectedFrequency">未到達</span>
+        </div>
+        <div class="stat">
+          <span class="k">音源との距離</span>
+          <span class="v" id="distanceValue">0.0 px</span>
+        </div>
+        <div class="stat">
+          <span class="k">観測者の実速度</span>
+          <span class="v" id="observerVelocity">0.0 px/s</span>
+        </div>
+        <div class="stat">
+          <span class="k">観測者の向き</span>
+          <span class="v" id="observerDirectionState">右向き</span>
+        </div>
+        <div class="stat">
+          <span class="k">反射板の位置</span>
+          <span class="v" id="reflectorPosition">0.0 px</span>
+        </div>
+        <div class="stat">
+          <span class="k">反射板の長さ</span>
+          <span class="v" id="reflectorLength">0.0 px</span>
+        </div>
+        <div class="stat">
+          <span class="k">反射板の実速度</span>
+          <span class="v" id="reflectorVelocity">0.0 px/s</span>
+        </div>
+        <div class="stat">
+          <span class="k">反射板の向き</span>
+          <span class="v" id="reflectorDirectionState">右向き</span>
+        </div>
+        <div class="stat">
+          <span class="k">音声状態</span>
+          <span class="v" id="audioState">停止中</span>
+        </div>
+      </div>
+
+      <div class="note">
+        オレンジ色の観測者をドラッグして動かせます。観測者の速さを 0 より大きくすると左右に自動で動きます。<br>
+        反射板の中央は左右移動、上下の丸い取っ手は長さ変更です。チェックを外すと反射板・反射波・反射音はまとめて無効になります。<br>
+        直接音と反射音のどちらにも、観測者の移動の影響を入れています。
+      </div>
+    </section>
+
+    <section class="stage-wrap">
+      <canvas id="canvas" width="860" height="580"></canvas>
+      <div class="legend">
+        <span><span class="dot blue"></span>直接波</span>
+        <span><span class="dot purple"></span>反射波</span>
+        <span><span class="dot green"></span>現在の音源</span>
+        <span><span class="dot orange"></span>観測者</span>
+        <span><span class="dot gray"></span>反射板</span>
+        <span><span class="dot red"></span>進行方向</span>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const sourceSpeedSlider = document.getElementById('sourceSpeed');
+    const waveSpeedSlider = document.getElementById('waveSpeed');
+    const displayFrequencySlider = document.getElementById('displayFrequency');
+    const observerSpeedSlider = document.getElementById('observerSpeed');
+    const reflectorEnabledCheckbox = document.getElementById('reflectorEnabled');
+    const reflectorSpeedSlider = document.getElementById('reflectorSpeed');
+
+    const sourceSpeedValue = document.getElementById('sourceSpeedValue');
+    const waveSpeedValue = document.getElementById('waveSpeedValue');
+    const displayFrequencyValue = document.getElementById('displayFrequencyValue');
+    const observerSpeedValue = document.getElementById('observerSpeedValue');
+    const observerDirectionValue = document.getElementById('observerDirectionValue');
+    const reflectorEnabledState = document.getElementById('reflectorEnabledState');
+    const reflectorSpeedValue = document.getElementById('reflectorSpeedValue');
+    const reflectorDirectionValue = document.getElementById('reflectorDirectionValue');
+    const ratioValue = document.getElementById('ratioValue');
+    const stateValue = document.getElementById('stateValue');
+    const frontLambda = document.getElementById('frontLambda');
+    const backLambda = document.getElementById('backLambda');
+    const baseFrequencyLabel = document.getElementById('baseFrequency');
+    const directFrequencyLabel = document.getElementById('directFrequency');
+    const reflectedFrequencyLabel = document.getElementById('reflectedFrequency');
+    const distanceValue = document.getElementById('distanceValue');
+    const observerVelocityLabel = document.getElementById('observerVelocity');
+    const observerDirectionStateLabel = document.getElementById('observerDirectionState');
+    const reflectorPositionLabel = document.getElementById('reflectorPosition');
+    const reflectorLengthLabel = document.getElementById('reflectorLength');
+    const reflectorVelocityLabel = document.getElementById('reflectorVelocity');
+    const reflectorDirectionStateLabel = document.getElementById('reflectorDirectionState');
+    const audioState = document.getElementById('audioState');
+
+    const toggleBtn = document.getElementById('toggleBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const soundBtn = document.getElementById('soundBtn');
+    const observerLeftBtn = document.getElementById('observerLeftBtn');
+    const observerRightBtn = document.getElementById('observerRightBtn');
+    const reflectorLeftBtn = document.getElementById('reflectorLeftBtn');
+    const reflectorRightBtn = document.getElementById('reflectorRightBtn');
+
+    const waves = [];
+    const sourceHistory = [];
+
+    let running = true;
+    let lastTime = performance.now();
+    let emitTimer = 0;
+    let simTime = 0;
+    let activeDrag = null;
+
+    let audioCtx = null;
+    let directOsc = null;
+    let directGain = null;
+    let reflectedOsc = null;
+    let reflectedGain = null;
+    let soundEnabled = false;
+
+    const margin = 40;
+    const historyDuration = 18;
+    const minReflectorLength = 60;
+
+    const source = {
+      x: margin,
+      y: canvas.height / 2,
+      radius: 9
+    };
+
+    const observer = {
+      x: canvas.width * 0.76,
+      y: canvas.height * 0.34,
+      radius: 12,
+      direction: 1
+    };
+
+    const reflector = {
+      x: canvas.width * 0.56,
+      y1: 120,
+      y2: 460,
+      handleRadius: 12,
+      centerHandleRadius: 10,
+      direction: 1
+    };
+
+    function isReflectorEnabled() {
+      return reflectorEnabledCheckbox.checked;
+    }
+
+    function getSourceSpeed() {
+      return Number(sourceSpeedSlider.value);
+    }
+
+    function getWaveSpeed() {
+      return Number(waveSpeedSlider.value);
+    }
+
+    function getDisplayFrequency() {
+      return Number(displayFrequencySlider.value);
+    }
+
+    function getObserverSpeedSetting() {
+      return Number(observerSpeedSlider.value);
+    }
+
+    function getReflectorSpeedSetting() {
+      return Number(reflectorSpeedSlider.value);
+    }
+
+    function getCurrentObserverVelocity() {
+      if (!running || activeDrag === 'observer') return 0;
+      return observer.direction * getObserverSpeedSetting();
+    }
+
+    function getCurrentReflectorVelocity() {
+      if (!isReflectorEnabled()) return 0;
+      const draggingReflector = activeDrag === 'reflectorMove' || activeDrag === 'reflectorTop' || activeDrag === 'reflectorBottom';
+      if (!running || draggingReflector) return 0;
+      return reflector.direction * getReflectorSpeedSetting();
+    }
+
+    function getObserverDirectionText() {
+      return observer.direction >= 0 ? '右向き' : '左向き';
+    }
+
+    function getReflectorDirectionText() {
+      return reflector.direction >= 0 ? '右向き' : '左向き';
+    }
+
+    function getPeriod() {
+      return 1 / getDisplayFrequency();
+    }
+
+    function getBaseFrequency() {
+      return 100 * getDisplayFrequency();
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getReflectorCenterY() {
+      return (reflector.y1 + reflector.y2) / 2;
+    }
+
+    function getReflectorLength() {
+      return reflector.y2 - reflector.y1;
+    }
+
+    function recordSourceState() {
+      sourceHistory.push({
+        t: simTime,
+        x: source.x,
+        y: source.y
+      });
+
+      const minTime = simTime - historyDuration;
+      while (sourceHistory.length > 2 && sourceHistory[1].t < minTime) {
+        sourceHistory.shift();
+      }
+    }
+
+    function resetSourceHistory() {
+      sourceHistory.length = 0;
+      sourceHistory.push({
+        t: simTime,
+        x: source.x,
+        y: source.y
+      });
+    }
+
+    function emitWave() {
+      waves.push({
+        x: source.x,
+        y: source.y,
+        birth: simTime
+      });
+    }
+
+    function resetSimulation() {
+      waves.length = 0;
+      source.x = margin;
+      simTime = 0;
+      emitTimer = 0;
+      resetSourceHistory();
+      emitWave();
+      recordSourceState();
+      updateLabels();
+    }
+
+    function getCurrentDistance() {
+      return Math.hypot(observer.x - source.x, observer.y - source.y);
+    }
+
+    function getReflectionPoint(sourceX, sourceY, observerX, observerY, plateX) {
+      const imageX = 2 * plateX - sourceX;
+      const dx = observerX - imageX;
+
+      if (Math.abs(dx) < 0.0001) {
+        return { x: plateX, y: (observerY + sourceY) / 2 };
+      }
+
+      const t = (plateX - imageX) / dx;
+      return {
+        x: plateX,
+        y: sourceY + t * (observerY - sourceY)
+      };
+    }
+
+    function isBouncePointOnReflector(point) {
+      if (!isReflectorEnabled()) return false;
+      return point.y >= reflector.y1 && point.y <= reflector.y2;
+    }
+
+    function getPathGeometry(state, mode) {
+      if (mode === 'direct') {
+        const dx = observer.x - state.x;
+        const dy = observer.y - state.y;
+        const distance = Math.hypot(dx, dy);
+
+        return {
+          distance,
+          actualX: state.x,
+          actualY: state.y,
+          imageX: state.x,
+          imageY: state.y,
+          bouncePoint: null,
+          distanceToBounce: 0,
+          outDistance: distance
+        };
+      }
+
+      if (!isReflectorEnabled()) {
+        return null;
+      }
+
+      const sourceSide = Math.sign(state.x - reflector.x);
+      const observerSide = Math.sign(observer.x - reflector.x);
+      if (sourceSide === 0 || observerSide === 0 || sourceSide !== observerSide) {
+        return null;
+      }
+
+      const bouncePoint = getReflectionPoint(state.x, state.y, observer.x, observer.y, reflector.x);
+      if (!isBouncePointOnReflector(bouncePoint)) {
+        return null;
+      }
+
+      const imageX = 2 * reflector.x - state.x;
+      const imageY = state.y;
+      const dx = observer.x - imageX;
+      const dy = observer.y - imageY;
+      const distance = Math.hypot(dx, dy);
+      const distanceToBounce = Math.hypot(bouncePoint.x - state.x, bouncePoint.y - state.y);
+      const outDistance = Math.hypot(observer.x - bouncePoint.x, observer.y - bouncePoint.y);
+
+      return {
+        distance,
+        actualX: state.x,
+        actualY: state.y,
+        imageX,
+        imageY,
+        bouncePoint,
+        distanceToBounce,
+        outDistance
+      };
+    }
+
+    function getArrivalMetrics(mode) {
+      const waveSpeed = getWaveSpeed();
+      const baseFrequency = getBaseFrequency();
+      const distanceNow = getCurrentDistance();
+
+      const defaultResult = {
+        mode,
+        distanceNow,
+        pathDistance: distanceNow,
+        delay: waveSpeed > 0 ? distanceNow / waveSpeed : Infinity,
+        emittedTime: simTime,
+        actualX: source.x,
+        actualY: source.y,
+        imageX: source.x,
+        imageY: source.y,
+        bouncePoint: null,
+        heardFrequency: 0,
+        gain: 0,
+        arrived: false
+      };
+
+      if (waveSpeed <= 0 || sourceHistory.length < 2) {
+        return defaultResult;
+      }
+
+      let chosen = null;
+      for (let i = sourceHistory.length - 1; i >= 0; i--) {
+        const state = sourceHistory[i];
+        const geom = getPathGeometry(state, mode);
+        if (!geom) continue;
+
+        const travelTime = geom.distance / waveSpeed;
+        if (simTime >= state.t + travelTime) {
+          chosen = { state, geom, index: i, travelTime };
+          break;
+        }
+      }
+
+      if (!chosen) {
+        return defaultResult;
+      }
+
+      const prevIndex = Math.max(0, chosen.index - 1);
+      const prev = sourceHistory[prevIndex];
+      const dtHist = Math.max(0.0001, chosen.state.t - prev.t);
+      const sourceVx = (chosen.state.x - prev.x) / dtHist;
+      const sourceVy = (chosen.state.y - prev.y) / dtHist;
+      const observerVx = getCurrentObserverVelocity();
+
+      let heardFrequency = baseFrequency;
+
+      if (mode === 'direct') {
+        let ux = 1;
+        let uy = 0;
+        if (chosen.geom.distance > 0.0001) {
+          ux = (observer.x - chosen.geom.imageX) / chosen.geom.distance;
+          uy = (observer.y - chosen.geom.imageY) / chosen.geom.distance;
+        }
+
+        const sourceToward = sourceVx * ux + sourceVy * uy;
+        const observerAlong = observerVx * ux;
+        const waveFrequency = baseFrequency * waveSpeed / Math.max(8, waveSpeed - sourceToward);
+        heardFrequency = clamp(waveFrequency * Math.max(8, waveSpeed - observerAlong) / waveSpeed, 40, 2400);
+      } else {
+        const plateVx = getCurrentReflectorVelocity();
+
+        let inUx = 1;
+        let inUy = 0;
+        if (chosen.geom.distanceToBounce > 0.0001) {
+          inUx = (chosen.geom.bouncePoint.x - chosen.geom.actualX) / chosen.geom.distanceToBounce;
+          inUy = (chosen.geom.bouncePoint.y - chosen.geom.actualY) / chosen.geom.distanceToBounce;
+        }
+
+        let outUx = 1;
+        let outUy = 0;
+        if (chosen.geom.outDistance > 0.0001) {
+          outUx = (observer.x - chosen.geom.bouncePoint.x) / chosen.geom.outDistance;
+          outUy = (observer.y - chosen.geom.bouncePoint.y) / chosen.geom.outDistance;
+        }
+
+        const sourceTowardPlate = sourceVx * inUx + sourceVy * inUy;
+        const plateAlongIn = plateVx * inUx;
+        const observerAlongOut = observerVx * outUx;
+        const plateAlongOut = plateVx * outUx;
+
+        const frequencyAtPlate = baseFrequency * Math.max(8, waveSpeed - plateAlongIn) / Math.max(8, waveSpeed - sourceTowardPlate);
+        const reflectedWaveFrequency = frequencyAtPlate * waveSpeed / Math.max(8, waveSpeed - plateAlongOut);
+        heardFrequency = clamp(reflectedWaveFrequency * Math.max(8, waveSpeed - observerAlongOut) / waveSpeed, 40, 2400);
+      }
+
+      const gainBase = mode === 'direct' ? 0.26 : 0.16;
+      const gain = clamp(gainBase / (1 + chosen.geom.distance / 180), 0, mode === 'direct' ? 0.22 : 0.12);
+
+      return {
+        mode,
+        distanceNow,
+        pathDistance: chosen.geom.distance,
+        delay: chosen.travelTime,
+        emittedTime: chosen.state.t,
+        actualX: chosen.geom.actualX,
+        actualY: chosen.geom.actualY,
+        imageX: chosen.geom.imageX,
+        imageY: chosen.geom.imageY,
+        bouncePoint: chosen.geom.bouncePoint,
+        heardFrequency,
+        gain,
+        arrived: true
+      };
+    }
+
+    function updateLabels() {
+      const vs = getSourceSpeed();
+      const vw = getWaveSpeed();
+      const frequency = getDisplayFrequency();
+      const dt = 1 / frequency;
+      const ratio = vw > 0 ? vs / vw : (vs === 0 ? 0 : Infinity);
+      const direct = getArrivalMetrics('direct');
+      const reflected = getArrivalMetrics('reflected');
+
+      sourceSpeedValue.textContent = `${vs.toFixed(0)} px/s`;
+      waveSpeedValue.textContent = `${vw.toFixed(0)} px/s`;
+      displayFrequencyValue.textContent = `${frequency.toFixed(2)} Hz`;
+      observerSpeedValue.textContent = `${getObserverSpeedSetting().toFixed(0)} px/s`;
+      reflectorEnabledState.textContent = isReflectorEnabled() ? '有効' : '無効';
+      reflectorSpeedValue.textContent = `${getReflectorSpeedSetting().toFixed(0)} px/s`;
+      observerDirectionValue.textContent = getObserverDirectionText();
+      reflectorDirectionValue.textContent = isReflectorEnabled() ? getReflectorDirectionText() : '無効';
+      ratioValue.textContent = Number.isFinite(ratio) ? ratio.toFixed(2) : '∞';
+
+      const front = Math.max(0, (vw - vs) * dt);
+      const back = (vw + vs) * dt;
+      frontLambda.textContent = `${front.toFixed(1)} px`;
+      backLambda.textContent = `${back.toFixed(1)} px`;
+      baseFrequencyLabel.textContent = `${getBaseFrequency().toFixed(1)} Hz`;
+      directFrequencyLabel.textContent = direct.arrived ? `${direct.heardFrequency.toFixed(1)} Hz` : '未到達';
+      reflectedFrequencyLabel.textContent = isReflectorEnabled()
+        ? (reflected.arrived ? `${reflected.heardFrequency.toFixed(1)} Hz` : '未到達')
+        : '無効';
+      distanceValue.textContent = `${direct.distanceNow.toFixed(1)} px`;
+      observerVelocityLabel.textContent = `${getCurrentObserverVelocity().toFixed(1)} px/s`;
+      observerDirectionStateLabel.textContent = getObserverDirectionText();
+      reflectorPositionLabel.textContent = isReflectorEnabled() ? `${reflector.x.toFixed(1)} px` : '無効';
+      reflectorLengthLabel.textContent = isReflectorEnabled() ? `${getReflectorLength().toFixed(1)} px` : '無効';
+      reflectorVelocityLabel.textContent = isReflectorEnabled() ? `${getCurrentReflectorVelocity().toFixed(1)} px/s` : '0.0 px/s';
+      reflectorDirectionStateLabel.textContent = isReflectorEnabled() ? getReflectorDirectionText() : '無効';
+
+      if (vw === 0) {
+        stateValue.textContent = '波が停止';
+      } else if (ratio < 1) {
+        stateValue.textContent = '通常';
+      } else if (Math.abs(ratio - 1) < 0.03) {
+        stateValue.textContent = '音速付近';
+      } else {
+        stateValue.textContent = '超音速';
+      }
+
+      if (!soundEnabled) {
+        audioState.textContent = '停止中';
+      } else {
+        const parts = [];
+        if (direct.arrived) parts.push(`直接 ${direct.heardFrequency.toFixed(0)} Hz`);
+        if (isReflectorEnabled() && reflected.arrived) parts.push(`反射 ${reflected.heardFrequency.toFixed(0)} Hz`);
+        audioState.textContent = parts.length > 0 ? `再生中 (${parts.join(' / ')})` : '波が未到達';
+      }
+    }
+
+    function drawBackground() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(31, 169, 125, 0.18)';
+      ctx.setLineDash([7, 7]);
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawDirectWaves() {
+      const waveSpeed = getWaveSpeed();
+      if (waveSpeed <= 0) return;
+
+      for (const wave of waves) {
+        const age = simTime - wave.birth;
+        const r = waveSpeed * age;
+        if (r > Math.hypot(canvas.width, canvas.height) + 80) continue;
+
+        const alpha = Math.max(0.35, 0.95 - r / 1600);
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(113, 186, 255, ${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    function drawReflectedWaves() {
+      if (!isReflectorEnabled()) return;
+      const waveSpeed = getWaveSpeed();
+      if (waveSpeed <= 0) return;
+
+      for (const wave of waves) {
+        const age = simTime - wave.birth;
+        const r = waveSpeed * age;
+        const bouncePoint = getReflectionPoint(wave.x, wave.y, observer.x, observer.y, reflector.x);
+        if (!isBouncePointOnReflector(bouncePoint)) continue;
+
+        const distanceToBounce = Math.hypot(bouncePoint.x - wave.x, bouncePoint.y - wave.y);
+        if (r <= distanceToBounce) continue;
+
+        const imageX = 2 * reflector.x - wave.x;
+
+        ctx.save();
+        ctx.beginPath();
+        if (wave.x <= reflector.x) {
+          ctx.rect(0, 0, reflector.x, canvas.height);
+        } else {
+          ctx.rect(reflector.x, 0, canvas.width - reflector.x, canvas.height);
+        }
+        ctx.clip();
+
+        ctx.beginPath();
+        ctx.arc(imageX, wave.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(138, 99, 255, 0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawArrow(x, y, velocity, color) {
+      if (Math.abs(velocity) <= 0.1) return;
+      const arrowSize = 16;
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      if (velocity > 0) {
+        ctx.moveTo(x - 24, y);
+        ctx.lineTo(x + 24, y);
+        ctx.lineTo(x + 24 - arrowSize, y - 7);
+        ctx.moveTo(x + 24, y);
+        ctx.lineTo(x + 24 - arrowSize, y + 7);
+      } else {
+        ctx.moveTo(x + 24, y);
+        ctx.lineTo(x - 24, y);
+        ctx.lineTo(x - 24 + arrowSize, y - 7);
+        ctx.moveTo(x - 24, y);
+        ctx.lineTo(x - 24 + arrowSize, y + 7);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawReflector() {
+      if (!isReflectorEnabled()) return;
+      const centerY = getReflectorCenterY();
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(57, 71, 92, 0.95)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(reflector.x, reflector.y1);
+      ctx.lineTo(reflector.x, reflector.y2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(57, 71, 92, 1)';
+      for (const y of [reflector.y1, centerY, reflector.y2]) {
+        const radius = y === centerY ? reflector.centerHandleRadius : reflector.handleRadius;
+        ctx.beginPath();
+        ctx.arc(reflector.x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.fillText('上', reflector.x - 6, reflector.y1 + 4);
+      ctx.fillText('移', reflector.x - 6, centerY + 4);
+      ctx.fillText('下', reflector.x - 6, reflector.y2 + 4);
+      ctx.restore();
+
+      drawArrow(reflector.x, centerY, getCurrentReflectorVelocity(), 'rgba(217, 92, 92, 0.95)');
+
+      ctx.save();
+      ctx.fillStyle = '#39475c';
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.fillText('反射板', reflector.x - 22, reflector.y1 - 12);
+      ctx.restore();
+    }
+
+    function drawSource() {
+      ctx.save();
+      const grd = ctx.createRadialGradient(source.x, source.y, 2, source.x, source.y, 24);
+      grd.addColorStop(0, 'rgba(54, 185, 143, 0.95)');
+      grd.addColorStop(1, 'rgba(54, 185, 143, 0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, 24, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(54, 185, 143, 1)';
+      ctx.beginPath();
+      ctx.arc(source.x, source.y, source.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+
+      drawArrow(source.x, source.y + 24, getSourceSpeed(), 'rgba(217, 92, 92, 0.95)');
+    }
+
+    function drawObserver() {
+      ctx.save();
+      const grd = ctx.createRadialGradient(observer.x, observer.y, 3, observer.x, observer.y, 26);
+      grd.addColorStop(0, 'rgba(245, 159, 58, 0.92)');
+      grd.addColorStop(1, 'rgba(245, 159, 58, 0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(observer.x, observer.y, 26, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(245, 159, 58, 1)';
+      ctx.beginPath();
+      ctx.arc(observer.x, observer.y, observer.radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#7b4b05';
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.fillText('観測者', observer.x - 22, observer.y - 18);
+      ctx.restore();
+
+      drawArrow(observer.x, observer.y + 24, getCurrentObserverVelocity(), 'rgba(245, 159, 58, 0.95)');
+    }
+
+    function drawCurrentGuides() {
+      const direct = getArrivalMetrics('direct');
+      const reflected = getArrivalMetrics('reflected');
+
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(245, 159, 58, 0.65)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(source.x, source.y);
+      ctx.lineTo(observer.x, observer.y);
+      ctx.stroke();
+      ctx.restore();
+
+      if (direct.arrived) {
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(245, 159, 58, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(direct.actualX, direct.actualY);
+        ctx.lineTo(observer.x, observer.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (isReflectorEnabled() && reflected.arrived && reflected.bouncePoint) {
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(138, 99, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(reflected.actualX, reflected.actualY);
+        ctx.lineTo(reflected.bouncePoint.x, reflected.bouncePoint.y);
+        ctx.lineTo(observer.x, observer.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawInfoOnCanvas() {
+      const direct = getArrivalMetrics('direct');
+      const reflected = getArrivalMetrics('reflected');
+      const vs = getSourceSpeed();
+      const vw = getWaveSpeed();
+      const frequency = getDisplayFrequency();
+      const observerVelocity = getCurrentObserverVelocity();
+      const reflectorVelocity = getCurrentReflectorVelocity();
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.fillRect(16, 16, 430, 170);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.strokeRect(16, 16, 430, 170);
+
+      ctx.fillStyle = '#162338';
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.fillText(`音源速度: ${vs.toFixed(0)} px/s`, 28, 41);
+      ctx.fillText(`波の速度: ${vw.toFixed(0)} px/s`, 28, 62);
+      ctx.fillText(`周波数: ${frequency.toFixed(2)} Hz`, 28, 83);
+      ctx.fillText(`観測者速度: ${observerVelocity.toFixed(1)} px/s`, 28, 104);
+      ctx.fillText(`反射板速度: ${isReflectorEnabled() ? reflectorVelocity.toFixed(1) + ' px/s' : '無効'}`, 28, 125);
+      ctx.fillText(`直接音: ${direct.arrived ? direct.heardFrequency.toFixed(1) + ' Hz' : '未到達'}`, 28, 146);
+      ctx.fillText(`反射音: ${isReflectorEnabled() ? (reflected.arrived ? reflected.heardFrequency.toFixed(1) + ' Hz' : '未到達') : '無効'}`, 28, 167);
+      ctx.restore();
+    }
+
+    function render() {
+      drawBackground();
+      drawDirectWaves();
+      drawReflectedWaves();
+      drawCurrentGuides();
+      drawReflector();
+      drawSource();
+      drawObserver();
+      drawInfoOnCanvas();
+    }
+
+    function step(dt) {
+      const sourceSpeed = getSourceSpeed();
+      const emitInterval = getPeriod();
+
+      source.x += sourceSpeed * dt;
+      if (source.x > canvas.width - margin) {
+        source.x = margin;
+        waves.length = 0;
+        emitTimer = 0;
+        resetSourceHistory();
+        emitWave();
+        recordSourceState();
+      }
+
+      if (activeDrag !== 'observer') {
+        observer.x += observer.direction * getObserverSpeedSetting() * dt;
+        if (observer.x >= canvas.width - 20) {
+          observer.x = canvas.width - 20;
+          observer.direction = -1;
+        } else if (observer.x <= 20) {
+          observer.x = 20;
+          observer.direction = 1;
+        }
+      }
+
+      const draggingReflector = activeDrag === 'reflectorMove' || activeDrag === 'reflectorTop' || activeDrag === 'reflectorBottom';
+      if (isReflectorEnabled() && !draggingReflector) {
+        reflector.x += reflector.direction * getReflectorSpeedSetting() * dt;
+        if (reflector.x >= canvas.width - 80) {
+          reflector.x = canvas.width - 80;
+          reflector.direction = -1;
+        } else if (reflector.x <= 80) {
+          reflector.x = 80;
+          reflector.direction = 1;
+        }
+      }
+
+      simTime += dt;
+      recordSourceState();
+
+      emitTimer += dt;
+      while (emitTimer >= emitInterval) {
+        emitWave();
+        emitTimer -= emitInterval;
+      }
+    }
+
+    async function ensureAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        directOsc = audioCtx.createOscillator();
+        directGain = audioCtx.createGain();
+        directOsc.type = 'sine';
+        directOsc.frequency.value = getBaseFrequency();
+        directGain.gain.value = 0;
+        directOsc.connect(directGain);
+        directGain.connect(audioCtx.destination);
+        directOsc.start();
+
+        reflectedOsc = audioCtx.createOscillator();
+        reflectedGain = audioCtx.createGain();
+        reflectedOsc.type = 'sine';
+        reflectedOsc.frequency.value = getBaseFrequency();
+        reflectedGain.gain.value = 0;
+        reflectedOsc.connect(reflectedGain);
+        reflectedGain.connect(audioCtx.destination);
+        reflectedOsc.start();
+      }
+
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+    }
+
+    function updateAudio() {
+      const direct = getArrivalMetrics('direct');
+      const reflected = getArrivalMetrics('reflected');
+      updateLabels();
+
+      if (!soundEnabled || !audioCtx || !directOsc || !directGain || !reflectedOsc || !reflectedGain) {
+        return;
+      }
+
+      const now = audioCtx.currentTime;
+      directOsc.frequency.cancelScheduledValues(now);
+      directGain.gain.cancelScheduledValues(now);
+      reflectedOsc.frequency.cancelScheduledValues(now);
+      reflectedGain.gain.cancelScheduledValues(now);
+
+      if (direct.arrived) {
+        directOsc.frequency.setTargetAtTime(direct.heardFrequency, now, 0.05);
+        directGain.gain.setTargetAtTime(direct.gain, now, 0.06);
+      } else {
+        directGain.gain.setTargetAtTime(0, now, 0.02);
+      }
+
+      if (isReflectorEnabled() && reflected.arrived) {
+        reflectedOsc.frequency.setTargetAtTime(reflected.heardFrequency, now, 0.05);
+        reflectedGain.gain.setTargetAtTime(reflected.gain, now, 0.06);
+      } else {
+        reflectedGain.gain.setTargetAtTime(0, now, 0.02);
+      }
+    }
+
+    async function toggleSound() {
+      if (!soundEnabled) {
+        await ensureAudio();
+        soundEnabled = true;
+        soundBtn.textContent = '音を停止';
+        updateAudio();
+      } else {
+        soundEnabled = false;
+        soundBtn.textContent = '音を再生';
+
+        if (audioCtx) {
+          const now = audioCtx.currentTime;
+          directGain.gain.cancelScheduledValues(now);
+          reflectedGain.gain.cancelScheduledValues(now);
+          directGain.gain.setTargetAtTime(0, now, 0.02);
+          reflectedGain.gain.setTargetAtTime(0, now, 0.02);
+        }
+
+        updateLabels();
+      }
+    }
+
+    function getCanvasPointerPosition(event) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      };
+    }
+
+    function isOnObserver(pos) {
+      return Math.hypot(pos.x - observer.x, pos.y - observer.y) <= observer.radius + 10;
+    }
+
+    function isOnReflectorTopHandle(pos) {
+      return Math.hypot(pos.x - reflector.x, pos.y - reflector.y1) <= reflector.handleRadius + 8;
+    }
+
+    function isOnReflectorBottomHandle(pos) {
+      return Math.hypot(pos.x - reflector.x, pos.y - reflector.y2) <= reflector.handleRadius + 8;
+    }
+
+    function isOnReflectorCenterHandle(pos) {
+      return Math.hypot(pos.x - reflector.x, pos.y - getReflectorCenterY()) <= reflector.centerHandleRadius + 8;
+    }
+
+    function isOnReflectorBody(pos) {
+      return Math.abs(pos.x - reflector.x) <= 12 && pos.y >= reflector.y1 - 8 && pos.y <= reflector.y2 + 8;
+    }
+
+    function updateDraggedObject(event) {
+      const pos = getCanvasPointerPosition(event);
+
+      if (activeDrag === 'observer') {
+        observer.x = clamp(pos.x, 20, canvas.width - 20);
+        observer.y = clamp(pos.y, 20, canvas.height - 20);
+      } else if (activeDrag === 'reflectorMove') {
+        reflector.x = clamp(pos.x, 80, canvas.width - 80);
+      } else if (activeDrag === 'reflectorTop') {
+        reflector.y1 = clamp(pos.y, 20, reflector.y2 - minReflectorLength);
+      } else if (activeDrag === 'reflectorBottom') {
+        reflector.y2 = clamp(pos.y, reflector.y1 + minReflectorLength, canvas.height - 20);
+      }
+
+      updateAudio();
+      render();
+    }
+
+    canvas.addEventListener('pointerdown', (event) => {
+      const pos = getCanvasPointerPosition(event);
+
+      if (isOnObserver(pos)) {
+        activeDrag = 'observer';
+      } else if (isReflectorEnabled() && isOnReflectorTopHandle(pos)) {
+        activeDrag = 'reflectorTop';
+      } else if (isReflectorEnabled() && isOnReflectorBottomHandle(pos)) {
+        activeDrag = 'reflectorBottom';
+      } else if (isReflectorEnabled() && (isOnReflectorCenterHandle(pos) || isOnReflectorBody(pos))) {
+        activeDrag = 'reflectorMove';
+      } else {
+        return;
+      }
+
+      canvas.classList.add('dragging');
+      canvas.setPointerCapture(event.pointerId);
+      updateDraggedObject(event);
+    });
+
+    canvas.addEventListener('pointermove', (event) => {
+      if (!activeDrag) return;
+      updateDraggedObject(event);
+    });
+
+    function stopDragging(event) {
+      if (!activeDrag) return;
+      activeDrag = null;
+      canvas.classList.remove('dragging');
+      if (event && canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    canvas.addEventListener('pointerup', stopDragging);
+    canvas.addEventListener('pointercancel', stopDragging);
+
+    function animate(now) {
+      let dt = (now - lastTime) / 1000;
+      lastTime = now;
+      dt = Math.min(dt, 0.04);
+
+      if (running) step(dt);
+      updateAudio();
+      render();
+      requestAnimationFrame(animate);
+    }
+
+    sourceSpeedSlider.addEventListener('input', updateAudio);
+    waveSpeedSlider.addEventListener('input', updateAudio);
+    displayFrequencySlider.addEventListener('input', updateAudio);
+    observerSpeedSlider.addEventListener('input', updateAudio);
+    reflectorEnabledCheckbox.addEventListener('input', () => {
+      updateAudio();
+      render();
+    });
+    reflectorSpeedSlider.addEventListener('input', updateAudio);
+
+    observerLeftBtn.addEventListener('click', () => {
+      observer.direction = -1;
+      updateAudio();
+      render();
+    });
+
+    observerRightBtn.addEventListener('click', () => {
+      observer.direction = 1;
+      updateAudio();
+      render();
+    });
+
+    reflectorLeftBtn.addEventListener('click', () => {
+      reflector.direction = -1;
+      updateAudio();
+      render();
+    });
+
+    reflectorRightBtn.addEventListener('click', () => {
+      reflector.direction = 1;
+      updateAudio();
+      render();
+    });
+
+    toggleBtn.addEventListener('click', () => {
+      running = !running;
+      toggleBtn.textContent = running ? '一時停止' : '再開';
+      updateAudio();
+      render();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      running = true;
+      toggleBtn.textContent = '一時停止';
+      resetSimulation();
+      updateAudio();
+      render();
+    });
+
+    soundBtn.addEventListener('click', () => {
+      toggleSound().catch((error) => {
+        console.error(error);
+        audioState.textContent = '再生に失敗';
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      render();
+    });
+
+    resetSimulation();
+    updateLabels();
+    render();
+
+    requestAnimationFrame((t) => {
+      lastTime = t;
+      requestAnimationFrame(animate);
+    });
+  </script>
+</body>
+</html>
