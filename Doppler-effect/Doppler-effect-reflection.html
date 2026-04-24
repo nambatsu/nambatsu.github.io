@@ -221,17 +221,17 @@
       <div class="control">
         <div class="label-row">
           <span>音源の速さ</span>
-          <span class="value" id="sourceSpeedValue">120 px/s</span>
+          <span class="value" id="sourceSpeedValue">40 px/s</span>
         </div>
-        <input id="sourceSpeed" type="range" min="0" max="360" step="1" value="120" />
+        <input id="sourceSpeed" type="range" min="0" max="360" step="1" value="40" />
       </div>
 
       <div class="control">
         <div class="label-row">
           <span>波の速さ</span>
-          <span class="value" id="waveSpeedValue">180 px/s</span>
+          <span class="value" id="waveSpeedValue">100 px/s</span>
         </div>
-        <input id="waveSpeed" type="range" min="0" max="360" step="1" value="180" />
+        <input id="waveSpeed" type="range" min="0" max="360" step="1" value="100" />
       </div>
 
       <div class="control">
@@ -245,9 +245,9 @@
       <div class="control">
         <div class="label-row">
           <span>観測者の速さ</span>
-          <span class="value" id="observerSpeedValue">60 px/s</span>
+          <span class="value" id="observerSpeedValue">0 px/s</span>
         </div>
-        <input id="observerSpeed" type="range" min="0" max="240" step="1" value="60" />
+        <input id="observerSpeed" type="range" min="0" max="240" step="1" value="0" />
       </div>
 
       <div class="control">
@@ -264,10 +264,10 @@
       <div class="control">
         <div class="label-row">
           <span>反射板の表示</span>
-          <span class="value" id="reflectorEnabledState">有効</span>
+          <span class="value" id="reflectorEnabledState">無効</span>
         </div>
         <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;">
-          <input id="reflectorEnabled" type="checkbox" checked style="width:18px; height:18px; accent-color:#2f86e6; cursor:pointer;" />
+          <input id="reflectorEnabled" type="checkbox" style="width:18px; height:18px; accent-color:#2f86e6; cursor:pointer;" />
           <span>反射板を表示して使う</span>
         </label>
       </div>
@@ -275,9 +275,9 @@
       <div class="control">
         <div class="label-row">
           <span>反射板の速さ</span>
-          <span class="value" id="reflectorSpeedValue">80 px/s</span>
+          <span class="value" id="reflectorSpeedValue">0 px/s</span>
         </div>
-        <input id="reflectorSpeed" type="range" min="0" max="240" step="1" value="80" />
+        <input id="reflectorSpeed" type="range" min="0" max="240" step="1" value="0" />
       </div>
 
       <div class="control">
@@ -451,7 +451,7 @@
 
     const observer = {
       x: canvas.width * 0.76,
-      y: canvas.height * 0.34,
+      y: canvas.height / 2,
       radius: 12,
       direction: 1
     };
@@ -1060,9 +1060,9 @@
 
       ctx.save();
       ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-      ctx.fillRect(16, 16, 430, 170);
+      ctx.fillRect(16, 16, 200, 170);
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
-      ctx.strokeRect(16, 16, 430, 170);
+      ctx.strokeRect(16, 16, 200, 170);
 
       ctx.fillStyle = '#162338';
       ctx.font = '14px system-ui, sans-serif';
