@@ -221,7 +221,7 @@
           <span>音源の速さ</span>
           <span class="value" id="sourceSpeedValue">120 px/s</span>
         </div>
-        <input id="sourceSpeed" type="range" min="0" max="320" step="1" value="120" />
+        <input id="sourceSpeed" type="range" min="0" max="360" step="1" value="120" />
       </div>
 
       <div class="control">
@@ -229,7 +229,7 @@
           <span>波の速さ</span>
           <span class="value" id="waveSpeedValue">180 px/s</span>
         </div>
-        <input id="waveSpeed" type="range" min="60" max="360" step="1" value="180" />
+        <input id="waveSpeed" type="range" min="0" max="360" step="1" value="180" />
       </div>
 
       <div class="control">
@@ -237,7 +237,7 @@
           <span>振動数（周波数）</span>
           <span class="value" id="emitIntervalValue">2.50 Hz</span>
         </div>
-        <input id="emitInterval" type="range" min="1.00" max="6.67" step="0.01" value="2.50" />
+        <input id="emitInterval" type="range" min="1.00" max="10.00" step="0.01" value="2.50" />
       </div>
 
       <div class="buttons">
@@ -324,6 +324,7 @@
     const soundBtn = document.getElementById('soundBtn');
 
     const waves = [];
+    const sourceHistory = [];
 
     let running = true;
     let lastTime = performance.now();
@@ -348,7 +349,8 @@
       radius: 12
     };
 
-    const margin = 80;
+    const margin = 40;
+    const historyDuration = 18;
 
     function getSourceSpeed() {
       return Number(sourceSpeedSlider.value);
@@ -358,58 +360,154 @@
       return Number(waveSpeedSlider.value);
     }
 
-    function getEmitInterval() {
+    function getDisplayFrequency() {
       return Number(emitIntervalSlider.value);
     }
 
+    function getPeriod() {
+      return 1 / getDisplayFrequency();
+    }
+
     function getBaseFrequency() {
-      return 88 * getEmitInterval();
+      return 100 * getDisplayFrequency();
     }
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
 
-    function getObserverMetrics() {
-      const dx = observer.x - source.x;
-      const dy = observer.y - source.y;
-      const distance = Math.hypot(dx, dy);
+    function recordSourceState() {
+      sourceHistory.push({
+        t: simTime,
+        x: source.x,
+        y: source.y
+      });
+
+      const minTime = simTime - historyDuration;
+      while (sourceHistory.length > 2 && sourceHistory[1].t < minTime) {
+        sourceHistory.shift();
+      }
+    }
+
+    function resetSourceHistory() {
+      sourceHistory.length = 0;
+      sourceHistory.push({
+        t: simTime,
+        x: source.x,
+        y: source.y
+      });
+    }
+
+    function getCurrentDistance() {
+      return Math.hypot(observer.x - source.x, observer.y - source.y);
+    }
+
+    function getArrivalMetrics() {
       const waveSpeed = getWaveSpeed();
-      const sourceSpeed = getSourceSpeed();
       const baseFrequency = getBaseFrequency();
+      const currentDistance = getCurrentDistance();
+
+      if (sourceHistory.length < 2) {
+        return {
+          distanceNow: currentDistance,
+          arrivalDistance: currentDistance,
+          delay: currentDistance / waveSpeed,
+          emittedTime: simTime,
+          arrivalTime: simTime + currentDistance / waveSpeed,
+          emittedX: source.x,
+          emittedY: source.y,
+          radialSpeedAtEmission: 0,
+          heardFrequency: baseFrequency,
+          gain: clamp(0.26 / (1 + currentDistance / 180), 0.02, 0.22),
+          arrived: false
+        };
+      }
+
+      let chosen = null;
+
+      for (let i = sourceHistory.length - 1; i >= 0; i--) {
+        const state = sourceHistory[i];
+        const dx = observer.x - state.x;
+        const dy = observer.y - state.y;
+        const distance = Math.hypot(dx, dy);
+        const travelTime = distance / waveSpeed;
+        const arrivalDifference = simTime - (state.t + travelTime);
+
+        if (arrivalDifference >= 0) {
+          chosen = {
+            state,
+            distance,
+            dx,
+            dy,
+            travelTime,
+            arrivalDifference
+          };
+          break;
+        }
+      }
+
+      if (!chosen) {
+        const oldest = sourceHistory[0];
+        const dx = observer.x - oldest.x;
+        const dy = observer.y - oldest.y;
+        const distance = Math.hypot(dx, dy);
+        const travelTime = distance / waveSpeed;
+        return {
+          distanceNow: currentDistance,
+          arrivalDistance: distance,
+          delay: travelTime,
+          emittedTime: oldest.t,
+          arrivalTime: oldest.t + travelTime,
+          emittedX: oldest.x,
+          emittedY: oldest.y,
+          radialSpeedAtEmission: 0,
+          heardFrequency: 0,
+          gain: 0.0001,
+          arrived: false
+        };
+      }
+
+      const index = sourceHistory.indexOf(chosen.state);
+      const prevIndex = Math.max(0, index - 1);
+      const prev = sourceHistory[prevIndex];
+      const dtHist = Math.max(0.0001, chosen.state.t - prev.t);
+      const vx = (chosen.state.x - prev.x) / dtHist;
+      const vy = (chosen.state.y - prev.y) / dtHist;
 
       let ux = 1;
       let uy = 0;
-      if (distance > 0.0001) {
-        ux = dx / distance;
-        uy = dy / distance;
+      if (chosen.distance > 0.0001) {
+        ux = chosen.dx / chosen.distance;
+        uy = chosen.dy / chosen.distance;
       }
 
-      const towardObserver = sourceSpeed * ux;
-      const denominator = Math.max(8, waveSpeed - towardObserver);
+      const radialSpeedAtEmission = vx * ux + vy * uy;
+      const denominator = Math.max(8, waveSpeed - radialSpeedAtEmission);
       const heardFrequency = clamp(baseFrequency * waveSpeed / denominator, 40, 2000);
-      const gain = clamp(0.26 / (1 + distance / 180), 0.02, 0.22);
+      const gain = clamp(0.26 / (1 + chosen.distance / 180), 0.02, 0.22);
 
       return {
-        dx,
-        dy,
-        distance,
-        ux,
-        uy,
-        towardObserver,
-        baseFrequency,
+        distanceNow: currentDistance,
+        arrivalDistance: chosen.distance,
+        delay: chosen.travelTime,
+        emittedTime: chosen.state.t,
+        arrivalTime: chosen.state.t + chosen.travelTime,
+        emittedX: chosen.state.x,
+        emittedY: chosen.state.y,
+        radialSpeedAtEmission,
         heardFrequency,
-        gain
+        gain,
+        arrived: true
       };
     }
 
     function updateLabels() {
       const vs = getSourceSpeed();
       const vw = getWaveSpeed();
-      const frequency = getEmitInterval();
+      const frequency = getDisplayFrequency();
       const dt = 1 / frequency;
       const ratio = vs / vw;
-      const metrics = getObserverMetrics();
+      const metrics = getArrivalMetrics();
 
       sourceSpeedValue.textContent = `${vs.toFixed(0)} px/s`;
       waveSpeedValue.textContent = `${vw.toFixed(0)} px/s`;
@@ -420,9 +518,9 @@
       const back = (vw + vs) * dt;
       frontLambda.textContent = `${front.toFixed(1)} px`;
       backLambda.textContent = `${back.toFixed(1)} px`;
-      baseFrequencyLabel.textContent = `${metrics.baseFrequency.toFixed(1)} Hz`;
-      heardFrequencyLabel.textContent = `${metrics.heardFrequency.toFixed(1)} Hz`;
-      distanceValue.textContent = `${metrics.distance.toFixed(1)} px`;
+      baseFrequencyLabel.textContent = `${getBaseFrequency().toFixed(1)} Hz`;
+      heardFrequencyLabel.textContent = metrics.arrived ? `${metrics.heardFrequency.toFixed(1)} Hz` : '未到達';
+      distanceValue.textContent = `${metrics.distanceNow.toFixed(1)} px`;
 
       if (ratio < 1) {
         stateValue.textContent = '通常';
@@ -434,6 +532,8 @@
 
       if (!soundEnabled) {
         audioState.textContent = '停止中';
+      } else if (!metrics.arrived) {
+        audioState.textContent = '波が未到達';
       } else {
         audioState.textContent = `再生中 (${metrics.heardFrequency.toFixed(0)} Hz)`;
       }
@@ -449,10 +549,12 @@
 
     function resetSimulation() {
       waves.length = 0;
-      source.x = 120;
+      source.x = margin;
       simTime = 0;
       emitTimer = 0;
+      resetSourceHistory();
       emitWave();
+      recordSourceState();
       updateLabels();
     }
 
@@ -565,7 +667,7 @@
     }
 
     function drawObserverGuide() {
-      const metrics = getObserverMetrics();
+      const metrics = getArrivalMetrics();
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.strokeStyle = 'rgba(245, 159, 58, 0.65)';
@@ -580,78 +682,112 @@
       const midX = (source.x + observer.x) / 2;
       const midY = (source.y + observer.y) / 2;
       ctx.fillStyle = 'rgba(255,255,255,0.88)';
-      ctx.fillRect(midX - 38, midY - 12, 76, 22);
+      ctx.fillRect(midX - 46, midY - 12, 92, 22);
       ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-      ctx.strokeRect(midX - 38, midY - 12, 76, 22);
+      ctx.strokeRect(midX - 46, midY - 12, 92, 22);
       ctx.fillStyle = '#7b4b05';
       ctx.font = '12px system-ui, sans-serif';
-      ctx.fillText(`${metrics.distance.toFixed(0)} px`, midX - 24, midY + 4);
+      ctx.fillText(`${metrics.distanceNow.toFixed(0)} px`, midX - 26, midY + 4);
+      ctx.restore();
+    }
+
+    function drawArrivalGuide() {
+      const metrics = getArrivalMetrics();
+      if (!metrics.arrived) return;
+
+      ctx.save();
+      ctx.setLineDash([3, 5]);
+      ctx.strokeStyle = 'rgba(217, 92, 92, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(metrics.emittedX, metrics.emittedY);
+      ctx.lineTo(observer.x, observer.y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.fillRect(observer.x + 12, observer.y + 10, 150, 42);
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.strokeRect(observer.x + 12, observer.y + 10, 150, 42);
+      ctx.fillStyle = '#162338';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`到達遅れ: ${metrics.delay.toFixed(2)} s`, observer.x + 20, observer.y + 28);
+      ctx.fillText(`放射時刻: ${metrics.emittedTime.toFixed(2)} s`, observer.x + 20, observer.y + 44);
       ctx.restore();
     }
 
     function drawInfoOnCanvas() {
       const vs = getSourceSpeed();
       const vw = getWaveSpeed();
-      const frequency = getEmitInterval();
-      const dt = 1 / frequency;
+      const frequency = getDisplayFrequency();
       const ratio = vs / vw;
-      const metrics = getObserverMetrics();
+      const metrics = getArrivalMetrics();
 
       ctx.save();
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(16, 16, 300, 104);
+      ctx.fillRect(16, 16, 340, 124);
       ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-      ctx.strokeRect(16, 16, 300, 104);
+      ctx.strokeRect(16, 16, 340, 124);
 
       ctx.fillStyle = '#162338';
       ctx.font = '14px system-ui, sans-serif';
       ctx.fillText(`音源速度: ${vs.toFixed(0)} px/s`, 28, 41);
       ctx.fillText(`波の速度: ${vw.toFixed(0)} px/s`, 28, 62);
       ctx.fillText(`周波数: ${frequency.toFixed(2)} Hz   比: ${ratio.toFixed(2)}`, 28, 83);
-      ctx.fillText(`観測者が聞く音: ${metrics.heardFrequency.toFixed(1)} Hz`, 28, 104);
+      ctx.fillText(`到達後の音: ${metrics.arrived ? metrics.heardFrequency.toFixed(1) + ' Hz' : '未到達'}`, 28, 104);
+      ctx.fillText(`伝わる遅れ: ${metrics.delay.toFixed(2)} s`, 28, 125);
       ctx.restore();
     }
 
     function step(dt) {
       const sourceSpeed = getSourceSpeed();
-      const emitInterval = 1 / getEmitInterval();
+      const emitInterval = getPeriod();
 
       source.x += sourceSpeed * dt;
       if (source.x > canvas.width - margin) {
         source.x = margin;
         waves.length = 0;
         emitTimer = 0;
+        resetSourceHistory();
         emitWave();
+        recordSourceState();
       }
+
+      simTime += dt;
+      recordSourceState();
 
       emitTimer += dt;
       while (emitTimer >= emitInterval) {
         emitWave();
         emitTimer -= emitInterval;
       }
-
-      simTime += dt;
     }
 
     function render() {
       drawBackground();
       drawWaves();
       drawObserverGuide();
+      drawArrivalGuide();
       drawSource();
       drawObserver();
       drawInfoOnCanvas();
     }
 
     function updateAudio() {
-      const metrics = getObserverMetrics();
+      const metrics = getArrivalMetrics();
       updateLabels();
 
       if (!soundEnabled || !audioCtx || !oscillator || !masterGain) return;
 
       const now = audioCtx.currentTime;
       oscillator.frequency.cancelScheduledValues(now);
-      oscillator.frequency.setTargetAtTime(metrics.heardFrequency, now, 0.05);
       masterGain.gain.cancelScheduledValues(now);
+
+      if (!metrics.arrived) {
+        masterGain.gain.setTargetAtTime(0, now, 0.01);
+        return;
+      }
+
+      oscillator.frequency.setTargetAtTime(metrics.heardFrequency, now, 0.05);
       masterGain.gain.setTargetAtTime(metrics.gain, now, 0.08);
     }
 
@@ -662,8 +798,8 @@
         masterGain = audioCtx.createGain();
 
         oscillator.type = 'sine';
-        oscillator.frequency.value = getObserverMetrics().heardFrequency;
-        masterGain.gain.value = 0.0001;
+        oscillator.frequency.value = getBaseFrequency();
+        masterGain.gain.value = 0;
 
         oscillator.connect(masterGain);
         masterGain.connect(audioCtx.destination);
@@ -687,7 +823,7 @@
         if (audioCtx && masterGain) {
           const now = audioCtx.currentTime;
           masterGain.gain.cancelScheduledValues(now);
-          masterGain.gain.setTargetAtTime(0.0001, now, 0.05);
+          masterGain.gain.setTargetAtTime(0, now, 0.01);
         }
         updateLabels();
       }
@@ -784,8 +920,8 @@
       render();
     });
 
-    updateLabels();
     resetSimulation();
+    updateLabels();
     render();
     requestAnimationFrame((t) => {
       lastTime = t;
