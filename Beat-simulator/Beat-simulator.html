@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>うなり観測シミュレーター</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --accent: #2563eb;
+      --accent-2: #16a34a;
+      --accent-3: #d97706;
+      --danger: #dc2626;
+      --border: rgba(15,23,42,0.10);
+      --shadow: 0 10px 24px rgba(15,23,42,0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1200px, calc(100% - 24px));
+      margin: 18px auto 40px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 22px 22px 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.5rem, 2vw + 1rem, 2.4rem);
+      line-height: 1.2;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      padding: 16px;
+    }
+
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+    }
+
+    .control {
+      background: var(--panel-2);
+      border: 1px solid rgba(15,23,42,0.08);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .label-row label {
+      font-size: 0.95rem;
+    }
+
+    .value {
+      color: var(--accent);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      min-width: 72px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    button, select {
+      border: 1px solid rgba(15,23,42,0.10);
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      min-width: 0;
+      width: 100%;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(15,23,42,0.18);
+    }
+
+    button.primary {
+      background: linear-gradient(180deg, rgba(96,165,250,0.35), rgba(59,130,246,0.12));
+    }
+
+    button.secondary {
+      background: linear-gradient(180deg, rgba(34,197,94,0.28), rgba(22,163,74,0.10));
+    }
+
+    .small-note {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 760px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid rgba(15,23,42,0.08);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .stat .name {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat .num {
+      font-size: 1.2rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .canvas-box {
+      background: #ffffff;
+      border: 1px solid rgba(15,23,42,0.08);
+      border-radius: 16px;
+      padding: 10px;
+    }
+
+    canvas {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 4px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 760px) {
+      .info-grid { grid-template-columns: 1fr; }
+    }
+
+    .formula {
+      background: var(--panel-2);
+      border: 1px solid rgba(15,23,42,0.08);
+      border-radius: 14px;
+      padding: 14px;
+      line-height: 1.8;
+    }
+
+    .formula code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #1d4ed8;
+      white-space: nowrap;
+    }
+
+    .preset-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 96px;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: stretch;
+    }
+
+    .preset-row > * {
+      min-width: 0;
+    }
+
+    .preset-row button {
+      white-space: nowrap;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>うなり観測シミュレーター</h1>
+      <p class="sub">
+        2つの近い周波数の波を重ねたときに生じる「うなり」を、<strong>波形</strong>と<strong>音</strong>で同時に観測できます。<br>
+        周波数差 <strong>|f<sub>1</sub> − f<sub>2</sub>|</strong> を小さくすると、振幅がゆっくり増減する様子が見えます。
+      </p>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>操作パネル</h2>
+        <div class="preset-row">
+          <select id="preset">
+            <option value="beat_clear">プリセット: はっきりしたうなり</option>
+            <option value="beat_slow">プリセット: ゆっくりしたうなり</option>
+            <option value="no_beat">プリセット: うなりなし</option>
+            <option value="large_diff">プリセット: 差が大きい</option>
+          </select>
+          <button id="applyPreset">適用</button>
+        </div>
+
+        <div class="controls">
+          <div class="control">
+            <div class="label-row"><label for="f1">波1の周波数 f₁</label><span class="value" id="f1Val"></span></div>
+            <input id="f1" type="range" min="80" max="660" step="1" value="440" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="f2">波2の周波数 f₂</label><span class="value" id="f2Val"></span></div>
+            <input id="f2" type="range" min="80" max="660" step="1" value="444" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="a1">波1の振幅 A₁</label><span class="value" id="a1Val"></span></div>
+            <input id="a1" type="range" min="0" max="1" step="0.01" value="0.8" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="a2">波2の振幅 A₂</label><span class="value" id="a2Val"></span></div>
+            <input id="a2" type="range" min="0" max="1" step="0.01" value="0.8" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="phase">位相差 φ</label><span class="value" id="phaseVal"></span></div>
+            <input id="phase" type="range" min="0" max="360" step="1" value="0" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="windowSec">表示時間幅</label><span class="value" id="windowVal"></span></div>
+            <input id="windowSec" type="range" min="1.5" max="10" step="0.1" value="4.0" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="speed">アニメーション速度</label><span class="value" id="speedVal"></span></div>
+            <input id="speed" type="range" min="0.2" max="2.5" step="0.05" value="1.0" />
+          </div>
+
+          <div class="control">
+            <div class="label-row"><label for="volume">音量</label><span class="value" id="volumeVal"></span></div>
+            <input id="volume" type="range" min="0" max="0.5" step="0.01" value="0.12" />
+            <div class="small-note">ブラウザの仕様上、音は「音を鳴らす」を押した後に再生されます。</div>
+          </div>
+        </div>
+
+        <div class="button-row" style="margin-top:14px;">
+          <button id="toggleAnim" class="primary">一時停止</button>
+          <button id="resetTime">時間をリセット</button>
+          <button id="toggleSound" class="secondary">音を鳴らす</button>
+          <button id="syncEqual">f₂ = f₁ にする</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="stats">
+          <div class="stat"><div class="name">差周波数 Δf</div><div class="num" id="deltaF"></div></div>
+          <div class="stat"><div class="name">うなり周期 T = 1/Δf</div><div class="num" id="beatPeriod"></div></div>
+          <div class="stat"><div class="name">現在時刻 t</div><div class="num" id="timeNow"></div></div>
+          <div class="stat"><div class="name">現在の合成変位</div><div class="num" id="sumNow"></div></div>
+        </div>
+
+        <div class="canvas-box">
+          <canvas id="scope" width="920" height="360"></canvas>
+          <div class="legend">
+            <span class="legend-item"><span class="swatch" style="background:#60a5fa"></span>波1</span>
+            <span class="legend-item"><span class="swatch" style="background:#22c55e"></span>波2</span>
+            <span class="legend-item"><span class="swatch" style="background:#0f172a"></span>合成波</span>
+            <span class="legend-item"><span class="swatch" style="background:#f59e0b"></span>包絡線（近似）</span>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="formula">
+            <strong>各波</strong><br>
+            <code>y₁ = A₁ sin(2πf₁t)</code><br>
+            <code>y₂ = A₂ sin(2πf₂t + φ)</code><br>
+            <code>y = y₁ + y₂</code>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const controls = {
+      f1: $('f1'), f2: $('f2'), a1: $('a1'), a2: $('a2'), phase: $('phase'),
+      windowSec: $('windowSec'), speed: $('speed'), volume: $('volume')
+    };
+
+    const outputs = {
+      f1Val: $('f1Val'), f2Val: $('f2Val'), a1Val: $('a1Val'), a2Val: $('a2Val'),
+      phaseVal: $('phaseVal'), windowVal: $('windowVal'), speedVal: $('speedVal'), volumeVal: $('volumeVal'),
+      deltaF: $('deltaF'), beatPeriod: $('beatPeriod'), timeNow: $('timeNow'), sumNow: $('sumNow')
+    };
+
+    const canvas = $('scope');
+    const ctx = canvas.getContext('2d');
+
+    let simTime = 0;
+    let running = true;
+    let lastTimestamp = performance.now();
+
+    let audioCtx = null;
+    let osc1 = null;
+    let osc2 = null;
+    let gain1 = null;
+    let gain2 = null;
+    let masterGain = null;
+    let soundOn = false;
+
+    const presets = {
+      beat_clear: { f1: 440, f2: 444, a1: 0.8, a2: 0.8, phase: 0, windowSec: 4.0, speed: 1.0 },
+      beat_slow:  { f1: 440, f2: 441, a1: 0.85, a2: 0.85, phase: 0, windowSec: 8.0, speed: 1.0 },
+      no_beat:    { f1: 440, f2: 440, a1: 0.8, a2: 0.8, phase: 0, windowSec: 4.0, speed: 1.0 },
+      large_diff: { f1: 440, f2: 470, a1: 0.75, a2: 0.75, phase: 0, windowSec: 2.0, speed: 1.0 }
+    };
+
+    function params() {
+      return {
+        f1: parseFloat(controls.f1.value),
+        f2: parseFloat(controls.f2.value),
+        a1: parseFloat(controls.a1.value),
+        a2: parseFloat(controls.a2.value),
+        phaseDeg: parseFloat(controls.phase.value),
+        phaseRad: parseFloat(controls.phase.value) * Math.PI / 180,
+        windowSec: parseFloat(controls.windowSec.value),
+        speed: parseFloat(controls.speed.value),
+        volume: parseFloat(controls.volume.value)
+      };
+    }
+
+    function waveAt(t, p) {
+      const y1 = p.a1 * Math.sin(2 * Math.PI * p.f1 * t);
+      const y2 = p.a2 * Math.sin(2 * Math.PI * p.f2 * t + p.phaseRad);
+      return { y1, y2, y: y1 + y2 };
+    }
+
+    function approxEnvelope(t, p) {
+      const deltaF = Math.abs(p.f1 - p.f2);
+      const meanA = (p.a1 + p.a2) / 2;
+      const env = 2 * meanA * Math.abs(Math.cos(Math.PI * deltaF * t));
+      return env;
+    }
+
+    function formatHz(v) { return `${v.toFixed(1)} Hz`; }
+    function formatSec(v) { return `${v.toFixed(2)} s`; }
+
+    function updateLabels() {
+      const p = params();
+      outputs.f1Val.textContent = formatHz(p.f1);
+      outputs.f2Val.textContent = formatHz(p.f2);
+      outputs.a1Val.textContent = p.a1.toFixed(2);
+      outputs.a2Val.textContent = p.a2.toFixed(2);
+      outputs.phaseVal.textContent = `${p.phaseDeg.toFixed(0)}°`;
+      outputs.windowVal.textContent = formatSec(p.windowSec);
+      outputs.speedVal.textContent = `${p.speed.toFixed(2)}×`;
+      outputs.volumeVal.textContent = `${Math.round(p.volume * 200)} %`;
+
+      const deltaF = Math.abs(p.f1 - p.f2);
+      outputs.deltaF.textContent = `${deltaF.toFixed(2)} Hz`;
+      outputs.beatPeriod.textContent = deltaF < 0.0001 ? '∞' : `${(1 / deltaF).toFixed(2)} s`;
+      outputs.timeNow.textContent = `${simTime.toFixed(2)} s`;
+      outputs.sumNow.textContent = waveAt(simTime, p).y.toFixed(3);
+
+      updateAudio();
+    }
+
+    function drawGrid() {
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+      ctx.lineWidth = 1;
+
+      const hLines = 8;
+      for (let i = 0; i <= hLines; i++) {
+        const y = (height / hLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      const vLines = 10;
+      for (let i = 0; i <= vLines; i++) {
+        const x = (width / vLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+    }
+
+    function drawPath(fn, p, color, width = 2, alpha = 1, dashed = false) {
+      const { width: w, height: h } = canvas;
+      const centerY = h / 2;
+      const scaleY = h * 0.18;
+      const leftTime = simTime - p.windowSec;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dashed ? [7, 6] : []);
+      ctx.beginPath();
+
+      for (let x = 0; x <= w; x++) {
+        const t = leftTime + (x / w) * p.windowSec;
+        const yVal = fn(t, p);
+        const y = centerY - yVal * scaleY;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCurrentMarker(p) {
+      const { width: w, height: h } = canvas;
+      const x = w;
+      const vals = waveAt(simTime, p);
+      const centerY = h / 2;
+      const scaleY = h * 0.18;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(15,23,42,0.25)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(w - 1, 0);
+      ctx.lineTo(w - 1, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const dots = [
+        { y: vals.y1, color: '#60a5fa' },
+        { y: vals.y2, color: '#22c55e' },
+        { y: vals.y, color: '#0f172a' }
+      ];
+
+      for (const d of dots) {
+        ctx.beginPath();
+        ctx.fillStyle = d.color;
+        ctx.arc(x - 2, centerY - d.y * scaleY, 4.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawTextOverlay(p) {
+      const deltaF = Math.abs(p.f1 - p.f2);
+      ctx.save();
+      ctx.fillStyle = 'rgba(15,23,42,0.85)';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`f₁=${p.f1.toFixed(1)} Hz`, 14, 24);
+      ctx.fillText(`f₂=${p.f2.toFixed(1)} Hz`, 14, 44);
+      ctx.fillText(`Δf=${deltaF.toFixed(2)} Hz`, 14, 64);
+      ctx.fillText(deltaF < 0.0001 ? 'うなり周期: ∞' : `うなり周期: ${(1/deltaF).toFixed(2)} s`, 14, 84);
+      ctx.restore();
+    }
+
+    function render() {
+      const p = params();
+      drawGrid();
+      drawPath((t, q) => waveAt(t, q).y1, p, '#60a5fa', 1.6, 0.85, false);
+      drawPath((t, q) => waveAt(t, q).y2, p, '#22c55e', 1.6, 0.85, false);
+      drawPath((t, q) => waveAt(t, q).y,  p, '#0f172a', 2.5, 1, false);
+
+      if (Math.abs(p.a1 - p.a2) < 0.08 && p.phaseDeg % 180 === 0) {
+        drawPath((t, q) => approxEnvelope(t, q), p, '#f59e0b', 1.8, 0.9, true);
+        drawPath((t, q) => -approxEnvelope(t, q), p, '#f59e0b', 1.8, 0.9, true);
+      }
+
+      drawCurrentMarker(p);
+      drawTextOverlay(p);
+    }
+
+    function animate(ts) {
+      const dt = Math.min(0.05, (ts - lastTimestamp) / 1000);
+      lastTimestamp = ts;
+      if (running) {
+        simTime += dt * params().speed;
+      }
+      updateLabels();
+      render();
+      requestAnimationFrame(animate);
+    }
+
+    async function ensureAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      gain1 = audioCtx.createGain();
+      gain2 = audioCtx.createGain();
+      osc1 = audioCtx.createOscillator();
+      osc2 = audioCtx.createOscillator();
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+
+      osc1.connect(gain1);
+      osc2.connect(gain2);
+      gain1.connect(masterGain);
+      gain2.connect(masterGain);
+      masterGain.connect(audioCtx.destination);
+
+      masterGain.gain.value = 0;
+      osc1.start();
+      osc2.start();
+      updateAudio();
+    }
+
+    function updateAudio() {
+      if (!audioCtx || !osc1 || !osc2) return;
+      const p = params();
+      const now = audioCtx.currentTime;
+      osc1.frequency.setTargetAtTime(p.f1, now, 0.01);
+      osc2.frequency.setTargetAtTime(p.f2, now, 0.01);
+      gain1.gain.setTargetAtTime(p.a1 * 0.20, now, 0.01);
+      gain2.gain.setTargetAtTime(p.a2 * 0.20, now, 0.01);
+      masterGain.gain.setTargetAtTime(soundOn ? p.volume : 0, now, 0.02);
+    }
+
+    $('toggleAnim').addEventListener('click', () => {
+      running = !running;
+      $('toggleAnim').textContent = running ? '一時停止' : '再開';
+    });
+
+    $('resetTime').addEventListener('click', () => {
+      simTime = 0;
+      updateLabels();
+      render();
+    });
+
+    $('toggleSound').addEventListener('click', async () => {
+      await ensureAudio();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      soundOn = !soundOn;
+      $('toggleSound').textContent = soundOn ? '音を止める' : '音を鳴らす';
+      updateAudio();
+    });
+
+    $('syncEqual').addEventListener('click', () => {
+      controls.f2.value = controls.f1.value;
+      updateLabels();
+      render();
+    });
+
+    $('applyPreset').addEventListener('click', () => {
+      const preset = presets[$('preset').value];
+      Object.entries(preset).forEach(([key, value]) => {
+        if (controls[key]) controls[key].value = value;
+      });
+      updateLabels();
+      render();
+    });
+
+    Object.values(controls).forEach(el => {
+      el.addEventListener('input', () => {
+        updateLabels();
+        render();
+      });
+    });
+
+    updateLabels();
+    render();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
