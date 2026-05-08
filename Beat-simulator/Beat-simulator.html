@@ -328,7 +328,7 @@
 
           <div class="control">
             <div class="label-row"><label for="windowSec">表示時間幅</label><span class="value" id="windowVal"></span></div>
-            <input id="windowSec" type="range" min="1.5" max="10" step="0.1" value="4.0" />
+            <input id="windowSec" type="range" min="0.02" max="10" step="0.01" value="4.0" />
           </div>
 
           <div class="control">
@@ -348,6 +348,11 @@
           <button id="resetTime">時間をリセット</button>
           <button id="toggleSound" class="secondary">音を鳴らす</button>
           <button id="syncEqual">f₂ = f₁ にする</button>
+        </div>
+
+        <div class="footer-note">
+          同じ振幅・同じ位相で重ねると、合成波の包絡線はおおよそ <strong>2A cos(πΔf t)</strong> に従います。<br>
+          したがって、うなりの回数は <strong>Δf = |f₁−f₂|</strong> に対応します。
         </div>
       </section>
 
