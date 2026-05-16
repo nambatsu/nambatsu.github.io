@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>輪投げゲーム（2D配置＋3D投球シミュレーション）</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --line: #d8dee9;
+      --text: #1f2937;
+      --sub: #6b7280;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --danger: #dc2626;
+      --green-soft: rgba(34, 197, 94, 0.14);
+      --shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Yu Gothic", sans-serif;
+      background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    .app {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      color: var(--sub);
+      font-size: 14px;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel, .board, .scene-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 16px;
+    }
+
+    .section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .section h2,
+    .scene-header h2 {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    label {
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    input[type="number"] {
+      width: 88px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    button {
+      border: none;
+      background: var(--accent);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+    }
+
+    button:hover { opacity: 0.94; }
+    button:active { transform: translateY(1px) scale(0.99); }
+
+    button.secondary {
+      background: #eef2ff;
+      color: #1e3a8a;
+      border: 1px solid #c7d2fe;
+    }
+
+    button.danger {
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .card .label {
+      color: var(--sub);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .card .value {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .desc {
+      font-size: 13px;
+      color: var(--sub);
+      line-height: 1.7;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .board {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 16px;
+      padding: 4px 4px 0;
+      font-size: 14px;
+      color: var(--sub);
+    }
+
+    .scenes {
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 14px;
+    }
+
+    .scene-card {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .scene-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .scene-header span {
+      font-size: 13px;
+      color: var(--sub);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: white;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      background: white;
+    }
+
+    #targetCanvas { height: 360px; cursor: crosshair; }
+    #simCanvas { height: 430px; }
+
+    .overlay {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .overlay.right {
+      left: auto;
+      right: 14px;
+      align-items: flex-end;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(148,163,184,0.35);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #334155;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+      max-width: min(100%, 380px);
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--sub);
+      padding: 2px 4px 0;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .history {
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      background: #fafafa;
+    }
+
+    .history-item {
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid #eceff3;
+    }
+
+    .history-item:last-child { border-bottom: none; }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 780px) {
+      #targetCanvas { height: 300px; }
+      #simCanvas { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="title">
+      <div>
+        <h1>輪投げゲーム（2D配置＋3D投球シミュレーション）</h1>
+        <div class="subtitle">
+          上の2D平面で輪の中心を決めると、下の3Dビューで「実際に輪が飛んで落ちる様子」を再生します。<br>
+          棒は xy平面全体の格子点に無数に並び、輪の中心だけは x軸・y軸を含む第一象限に置けます。
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="panel">
+        <div class="section">
+          <h2>輪の設定</h2>
+          <div class="row">
+            <label for="diameterRange">直径</label>
+            <input id="diameterRange" type="range" min="0.5" max="14" step="0.1" value="4.0" />
+            <input id="diameterNumber" type="number" min="0.5" max="14" step="0.1" value="4.0" />
+          </div>
+          <div class="row">
+            <label for="zoomRange">2D表示倍率</label>
+            <input id="zoomRange" type="range" min="20" max="90" step="1" value="42" />
+            <span id="zoomValue" class="mono">42 px</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>操作</h2>
+          <div class="row">
+            <button id="randomThrowBtn">ランダムに投げる</button>
+            <button id="undoBtn" class="secondary">ひとつ戻す</button>
+          </div>
+          <div class="row">
+            <button id="centerBtn" class="secondary">原点付近へ戻す</button>
+            <button id="clearBtn" class="danger">全部リセット</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>スコア</h2>
+          <div class="stats">
+            <div class="card">
+              <div class="label">合計得点</div>
+              <div class="value" id="totalScore">0</div>
+            </div>
+            <div class="card">
+              <div class="label">投球数</div>
+              <div class="value" id="throwCount">0</div>
+            </div>
+            <div class="card">
+              <div class="label">前回得点</div>
+              <div class="value" id="lastScore">0</div>
+            </div>
+            <div class="card">
+              <div class="label">最高得点</div>
+              <div class="value" id="bestScore">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>履歴</h2>
+          <div id="history" class="history"></div>
+        </div>
+
+        <div class="section">
+          <div class="desc">
+            <strong>遊び方</strong><br>
+            ・上の2D平面をクリックすると、その座標を輪の中心として投球します。<br>
+            ・下の3Dビューで、輪が空中を飛んで着地するアニメーションが再生されます。<br>
+            ・得点は、着地した輪の内側または円周上に入った棒の本数です。<br>
+            ・棒は xy平面全体の格子点にあります。<br>
+            ・ただし輪の中心は x≧0, y≧0 の範囲にしか置けません。
+          </div>
+        </div>
+      </aside>
+
+      <main class="board">
+        <div class="toolbar">
+          <div>上：配置用の2D平面 / 下：3D投球シミュレーション</div>
+          <div id="statusText">待機中</div>
+        </div>
+
+        <div class="scenes">
+          <section class="scene-card">
+            <div class="scene-header">
+              <h2>2D配置平面</h2>
+              <span>クリックで輪の中心を指定 / ドラッグで移動 / ホイールで拡大縮小</span>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="targetCanvas" width="980" height="360"></canvas>
+              <div class="overlay">
+                <div class="chip" id="hoverChip">カーソル座標: --</div>
+                <div class="chip" id="diameterChip">現在の直径: 4.0</div>
+              </div>
+              <div class="overlay right">
+                <div class="chip">淡い緑の領域が「輪の中心を置ける範囲」です。</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene-card">
+            <div class="scene-header">
+              <h2>3D投球シミュレーション</h2>
+              <span>置いた位置に向かって輪が飛び、水平に近づきながら落下します</span>
+            </div>
+            <div class="canvas-wrap">
+              <canvas id="simCanvas" width="980" height="430"></canvas>
+              <div class="overlay">
+                <div class="chip">x軸・y軸を含む第一象限を薄緑で表示</div>
+                <div class="chip">赤い輪が投球中 / 着地後は半透明で残ります</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="legend">
+          <span><span class="dot" style="background:#334155"></span>通常の棒</span>
+          <span><span class="dot" style="background:#dc2626"></span>直前の投球で輪に入った棒</span>
+          <span><span class="dot" style="background:#2563eb"></span>輪の中心</span>
+          <span><span class="dot" style="background:#22c55e"></span>輪の中心が置ける領域</span>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const targetCanvas = document.getElementById('targetCanvas');
+      const targetCtx = targetCanvas.getContext('2d');
+      const simCanvas = document.getElementById('simCanvas');
+      const simCtx = simCanvas.getContext('2d');
+
+      const diameterRange = document.getElementById('diameterRange');
+      const diameterNumber = document.getElementById('diameterNumber');
+      const zoomRange = document.getElementById('zoomRange');
+      const zoomValue = document.getElementById('zoomValue');
+      const diameterChip = document.getElementById('diameterChip');
+      const hoverChip = document.getElementById('hoverChip');
+      const statusText = document.getElementById('statusText');
+
+      const totalScoreEl = document.getElementById('totalScore');
+      const throwCountEl = document.getElementById('throwCount');
+      const lastScoreEl = document.getElementById('lastScore');
+      const bestScoreEl = document.getElementById('bestScore');
+      const historyEl = document.getElementById('history');
+
+      const randomThrowBtn = document.getElementById('randomThrowBtn');
+      const undoBtn = document.getElementById('undoBtn');
+      const centerBtn = document.getElementById('centerBtn');
+      const clearBtn = document.getElementById('clearBtn');
+
+      const state = {
+        scale: Number(zoomRange.value),
+        diameter: Number(diameterRange.value),
+        offsetX: 110,
+        offsetY: 95,
+        throws: [],
+        animation: null,
+        hoverWorld: null,
+        dragging: false,
+        pointerDown: false,
+        pointerStart: null,
+        offsetStart: null,
+      };
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function cubicBezier(p0, p1, p2, p3, t) {
+        const mt = 1 - t;
+        const mt2 = mt * mt;
+        const t2 = t * t;
+        const a = mt2 * mt;
+        const b = 3 * mt2 * t;
+        const c = 3 * mt * t2;
+        const d = t * t2;
+        return {
+          x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+          y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+          z: a * p0.z + b * p1.z + c * p2.z + d * p3.z,
+        };
+      }
+
+      function syncDiameter(from) {
+        const value = Math.max(0.5, Math.min(14, Number(from.value || 4)));
+        state.diameter = value;
+        diameterRange.value = value;
+        diameterNumber.value = value.toFixed(1);
+        diameterChip.textContent = `現在の直径: ${value.toFixed(1)}`;
+        render();
+      }
+
+      diameterRange.addEventListener('input', () => syncDiameter(diameterRange));
+      diameterNumber.addEventListener('input', () => syncDiameter(diameterNumber));
+      diameterNumber.addEventListener('change', () => syncDiameter(diameterNumber));
+
+      zoomRange.addEventListener('input', () => {
+        const centerWorld = screenToWorld(targetCanvas.width / 2, targetCanvas.height / 2);
+        state.scale = Number(zoomRange.value);
+        zoomValue.textContent = `${state.scale} px`;
+        worldToScreenRecenter(centerWorld.x, centerWorld.y);
+        render();
+      });
+
+      function worldToScreen(x, y) {
+        return {
+          x: state.offsetX + x * state.scale,
+          y: targetCanvas.height - state.offsetY - y * state.scale,
+        };
+      }
+
+      function screenToWorld(sx, sy) {
+        return {
+          x: (sx - state.offsetX) / state.scale,
+          y: (targetCanvas.height - state.offsetY - sy) / state.scale,
+        };
+      }
+
+      function worldToScreenRecenter(worldX, worldY) {
+        state.offsetX = targetCanvas.width / 2 - worldX * state.scale;
+        state.offsetY = targetCanvas.height / 2 - worldY * state.scale;
+        clampOffsets();
+      }
+
+      function clampOffsets() {
+        const maxX = targetCanvas.width - 30;
+        const maxY = targetCanvas.height - 30;
+        const minX = -200000;
+        const minY = -200000;
+        state.offsetX = Math.min(maxX, Math.max(minX, state.offsetX));
+        state.offsetY = Math.min(maxY, Math.max(minY, state.offsetY));
+      }
+
+      function visibleBounds() {
+        return {
+          xMin: (0 - state.offsetX) / state.scale,
+          xMax: (targetCanvas.width - state.offsetX) / state.scale,
+          yMin: (0 - state.offsetY) / state.scale,
+          yMax: (targetCanvas.height - state.offsetY) / state.scale,
+        };
+      }
+
+      function scoreThrow(cx, cy, radius) {
+        const points = [];
+        const xStart = Math.ceil(cx - radius);
+        const xEnd = Math.floor(cx + radius);
+        const r2 = radius * radius + 1e-9;
+
+        for (let x = xStart; x <= xEnd; x++) {
+          const dx = x - cx;
+          const rem = r2 - dx * dx;
+          if (rem < 0) continue;
+          const dyMax = Math.sqrt(rem);
+          const yStart = Math.ceil(cy - dyMax);
+          const yEnd = Math.floor(cy + dyMax);
+          for (let y = yStart; y <= yEnd; y++) {
+            points.push({ x, y });
+          }
+        }
+
+        return { score: points.length, points };
+      }
+
+      function createThrowEntry(cx, cy) {
+        const radius = state.diameter / 2;
+        const result = scoreThrow(cx, cy, radius);
+        const approach = Math.max(3.4, radius * 1.15 + 2.0);
+
+        return {
+          id: crypto.randomUUID(),
+          cx,
+          cy,
+          radius,
+          score: result.score,
+          points: result.points,
+          time: new Date(),
+          sim: {
+            start: { x: cx + approach, y: cy + approach * 0.82, z: 4.9 + radius * 0.65 },
+            c1: { x: cx + approach * 0.65, y: cy + approach * 0.95, z: 6.4 + radius * 0.35 },
+            c2: { x: cx + radius * 0.6, y: cy + radius * 0.75, z: 2.0 + radius * 0.18 },
+            end: { x: cx, y: cy, z: 0.34 },
+            startTilt: 1.08,
+            endTilt: 0.04,
+            startYaw: -0.62,
+            endYaw: 0.26,
+            spin: Math.PI * 1.3,
+          },
+        };
+      }
+
+      function addThrow(cx, cy) {
+        if (cx < 0 || cy < 0) return;
+        const entry = createThrowEntry(cx, cy);
+        state.animation = {
+          start: performance.now(),
+          duration: 1350,
+          throwData: entry,
+        };
+        statusText.textContent = `投球中… 中心=(${cx.toFixed(2)}, ${cy.toFixed(2)})`;
+        render();
+      }
+
+      function finalizeAnimation() {
+        if (!state.animation) return;
+        state.throws.push(state.animation.throwData);
+        state.animation = null;
+        updateStats();
+        statusText.textContent = '待機中';
+        render();
+      }
+
+      function animationProgress() {
+        if (!state.animation) return 0;
+        return Math.min(1, (performance.now() - state.animation.start) / state.animation.duration);
+      }
+
+      function getPose(entry, t) {
+        const eased = easeOutCubic(t);
+        return {
+          position: cubicBezier(entry.sim.start, entry.sim.c1, entry.sim.c2, entry.sim.end, t),
+          tilt: lerp(entry.sim.startTilt, entry.sim.endTilt, eased),
+          yaw: lerp(entry.sim.startYaw, entry.sim.endYaw, eased) + entry.sim.spin * t,
+        };
+      }
+
+      function updateStats() {
+        const total = state.throws.reduce((sum, t) => sum + t.score, 0);
+        const count = state.throws.length;
+        const last = count ? state.throws[count - 1].score : 0;
+        const best = count ? Math.max(...state.throws.map(t => t.score)) : 0;
+
+        totalScoreEl.textContent = total;
+        throwCountEl.textContent = count;
+        lastScoreEl.textContent = last;
+        bestScoreEl.textContent = best;
+
+        renderHistory();
+      }
+
+      function renderHistory() {
+        historyEl.innerHTML = '';
+        if (state.throws.length === 0) {
+          historyEl.innerHTML = '<div class="history-item"><div>#--</div><div>まだ投げていません</div><div>0点</div></div>';
+          return;
+        }
+
+        [...state.throws].reverse().forEach((t, idx) => {
+          const no = state.throws.length - idx;
+          const item = document.createElement('div');
+          item.className = 'history-item';
+          item.innerHTML = `
+            <div class="mono">#${no}</div>
+            <div class="mono">中心=(${t.cx.toFixed(2)}, ${t.cy.toFixed(2)})</div>
+            <div><strong>${t.score}</strong>点</div>
+          `;
+          historyEl.appendChild(item);
+        });
+      }
+
+      function activeOrLastThrow() {
+        return state.animation?.throwData || state.throws[state.throws.length - 1] || null;
+      }
+
+      function drawTargetBackground() {
+        targetCtx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+        targetCtx.fillStyle = '#ffffff';
+        targetCtx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+
+        const bounds = visibleBounds();
+        const xStart = Math.floor(bounds.xMin);
+        const xEnd = Math.ceil(bounds.xMax);
+        const yStart = Math.floor(bounds.yMin);
+        const yEnd = Math.ceil(bounds.yMax);
+
+        if (bounds.xMax > 0 && bounds.yMax > 0) {
+          const p1 = worldToScreen(0, 0);
+          const p2 = worldToScreen(Math.max(0, bounds.xMax), 0);
+          const p3 = worldToScreen(Math.max(0, bounds.xMax), Math.max(0, bounds.yMax));
+          const p4 = worldToScreen(0, Math.max(0, bounds.yMax));
+          targetCtx.save();
+          targetCtx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+          targetCtx.beginPath();
+          targetCtx.moveTo(p1.x, p1.y);
+          targetCtx.lineTo(p2.x, p2.y);
+          targetCtx.lineTo(p3.x, p3.y);
+          targetCtx.lineTo(p4.x, p4.y);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.restore();
+        }
+
+        targetCtx.save();
+        targetCtx.lineWidth = 1;
+        targetCtx.strokeStyle = '#eef2f7';
+
+        for (let x = xStart; x <= xEnd; x++) {
+          const p1 = worldToScreen(x, bounds.yMin);
+          const p2 = worldToScreen(x, bounds.yMax);
+          targetCtx.beginPath();
+          targetCtx.moveTo(Math.round(p1.x) + 0.5, 0);
+          targetCtx.lineTo(Math.round(p2.x) + 0.5, targetCanvas.height);
+          targetCtx.stroke();
+        }
+
+        for (let y = yStart; y <= yEnd; y++) {
+          const p1 = worldToScreen(bounds.xMin, y);
+          const p2 = worldToScreen(bounds.xMax, y);
+          targetCtx.beginPath();
+          targetCtx.moveTo(0, Math.round(p1.y) + 0.5);
+          targetCtx.lineTo(targetCanvas.width, Math.round(p2.y) + 0.5);
+          targetCtx.stroke();
+        }
+
+        targetCtx.restore();
+        drawTargetAxes(bounds);
+        drawTargetTicks(bounds);
+      }
+
+      function drawTargetAxes(bounds) {
+        const origin = worldToScreen(0, 0);
+        targetCtx.save();
+        targetCtx.strokeStyle = '#94a3b8';
+        targetCtx.lineWidth = 2;
+
+        if (origin.x >= 0 && origin.x <= targetCanvas.width) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(origin.x, 0);
+          targetCtx.lineTo(origin.x, targetCanvas.height);
+          targetCtx.stroke();
+        }
+
+        if (origin.y >= 0 && origin.y <= targetCanvas.height) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(0, origin.y);
+          targetCtx.lineTo(targetCanvas.width, origin.y);
+          targetCtx.stroke();
+        }
+        targetCtx.restore();
+      }
+
+      function drawTargetTicks(bounds) {
+        const origin = worldToScreen(0, 0);
+        targetCtx.save();
+        targetCtx.fillStyle = '#64748b';
+        targetCtx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+        if (origin.y >= 0 && origin.y <= targetCanvas.height) {
+          for (let x = Math.ceil(bounds.xMin); x <= Math.floor(bounds.xMax); x++) {
+            if (x === 0) continue;
+            const p = worldToScreen(x, 0);
+            if (p.x < -30 || p.x > targetCanvas.width + 30) continue;
+            targetCtx.fillText(String(x), p.x - 6, Math.min(targetCanvas.height - 8, origin.y + 16));
+          }
+        }
+
+        if (origin.x >= 0 && origin.x <= targetCanvas.width) {
+          for (let y = Math.ceil(bounds.yMin); y <= Math.floor(bounds.yMax); y++) {
+            if (y === 0) continue;
+            const p = worldToScreen(0, y);
+            if (p.y < -20 || p.y > targetCanvas.height + 20) continue;
+            targetCtx.fillText(String(y), Math.min(targetCanvas.width - 18, origin.x + 8), p.y + 4);
+          }
+        }
+        targetCtx.restore();
+      }
+
+      function drawTargetPoles() {
+        const bounds = visibleBounds();
+        const xStart = Math.ceil(bounds.xMin);
+        const xEnd = Math.floor(bounds.xMax);
+        const yStart = Math.ceil(bounds.yMin);
+        const yEnd = Math.floor(bounds.yMax);
+
+        const focusThrow = activeOrLastThrow();
+        const hitMap = new Set((focusThrow?.points || []).map(p => `${p.x},${p.y}`));
+
+        for (let x = xStart; x <= xEnd; x++) {
+          for (let y = yStart; y <= yEnd; y++) {
+            const pos = worldToScreen(x, y);
+            const hit = hitMap.has(`${x},${y}`);
+            targetCtx.beginPath();
+            targetCtx.fillStyle = hit ? '#dc2626' : '#334155';
+            targetCtx.arc(pos.x, pos.y, hit ? 4.5 : 3.1, 0, Math.PI * 2);
+            targetCtx.fill();
+
+            targetCtx.beginPath();
+            targetCtx.strokeStyle = hit ? 'rgba(220,38,38,0.25)' : 'rgba(51,65,85,0.14)';
+            targetCtx.lineWidth = 1.5;
+            targetCtx.moveTo(pos.x, pos.y);
+            targetCtx.lineTo(pos.x, pos.y - Math.min(18, state.scale * 0.45));
+            targetCtx.stroke();
+          }
+        }
+      }
+
+      function drawTargetThrow(t, options = {}) {
+        const center = worldToScreen(t.cx, t.cy);
+        const r = t.radius * state.scale;
+        targetCtx.save();
+        targetCtx.globalAlpha = options.alpha ?? 1;
+        targetCtx.lineWidth = options.lineWidth ?? 2.5;
+        targetCtx.strokeStyle = options.stroke ?? '#2563eb';
+        targetCtx.fillStyle = options.fill ?? 'rgba(37,99,235,0.07)';
+        if (options.dash) targetCtx.setLineDash(options.dash);
+        targetCtx.beginPath();
+        targetCtx.arc(center.x, center.y, r, 0, Math.PI * 2);
+        targetCtx.fill();
+        targetCtx.stroke();
+
+        targetCtx.setLineDash([]);
+        targetCtx.beginPath();
+        targetCtx.fillStyle = '#2563eb';
+        targetCtx.arc(center.x, center.y, options.centerRadius ?? 4, 0, Math.PI * 2);
+        targetCtx.fill();
+        targetCtx.restore();
+      }
+
+      function drawTargetThrows() {
+        for (let i = 0; i < state.throws.length; i++) {
+          const t = state.throws[i];
+          const isLast = i === state.throws.length - 1 && !state.animation;
+          drawTargetThrow(t, {
+            alpha: isLast ? 0.95 : 0.38,
+            stroke: isLast ? '#2563eb' : 'rgba(37,99,235,0.36)',
+            fill: isLast ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.03)',
+            lineWidth: isLast ? 3 : 2,
+            centerRadius: isLast ? 5 : 3,
+          });
+        }
+
+        if (state.animation) {
+          drawTargetThrow(state.animation.throwData, {
+            alpha: 1,
+            stroke: '#2563eb',
+            fill: 'rgba(37,99,235,0.08)',
+            lineWidth: 3,
+            dash: [8, 6],
+            centerRadius: 5,
+          });
+        }
+      }
+
+      function drawHoverGuide() {
+        if (!state.hoverWorld) return;
+        const { x, y } = state.hoverWorld;
+        if (x < 0 || y < 0) return;
+        const center = worldToScreen(x, y);
+        const radius = (state.diameter / 2) * state.scale;
+
+        targetCtx.save();
+        targetCtx.setLineDash([8, 6]);
+        targetCtx.strokeStyle = 'rgba(37,99,235,0.45)';
+        targetCtx.lineWidth = 1.5;
+        targetCtx.beginPath();
+        targetCtx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+        targetCtx.stroke();
+        targetCtx.restore();
+      }
+
+      function renderTarget() {
+        drawTargetBackground();
+        drawHoverGuide();
+        drawTargetPoles();
+        drawTargetThrows();
+      }
+
+      function getSimView() {
+        const focus = activeOrLastThrow() || { cx: 2.5, cy: 2.5, radius: 2 };
+        const xMin = Math.min(-4, Math.floor(focus.cx - focus.radius - 4));
+        const xMax = Math.max(7, Math.ceil(focus.cx + focus.radius + 4));
+        const yMin = Math.min(-4, Math.floor(focus.cy - focus.radius - 4));
+        const yMax = Math.max(7, Math.ceil(focus.cy + focus.radius + 4));
+        const zMax = 8;
+        const xSpan = xMax - xMin;
+        const ySpan = yMax - yMin;
+        const scale = Math.min(
+          (simCanvas.width - 130) / (xSpan + ySpan + 2),
+          (simCanvas.height - 120) / (0.45 * (xSpan + ySpan + 2) + zMax)
+        );
+
+        function raw(x, y, z) {
+          return {
+            x: (x - y) * scale,
+            y: (x + y) * scale * 0.45 - z * scale * 0.95,
+          };
+        }
+
+        const samples = [
+          raw(xMin, yMin, 0), raw(xMin, yMax, 0), raw(xMax, yMin, 0), raw(xMax, yMax, 0),
+          raw(xMin, yMin, zMax), raw(xMin, yMax, zMax), raw(xMax, yMin, zMax), raw(xMax, yMax, zMax),
+        ];
+
+        const minSX = Math.min(...samples.map(p => p.x));
+        const maxSX = Math.max(...samples.map(p => p.x));
+        const minSY = Math.min(...samples.map(p => p.y));
+        const maxSY = Math.max(...samples.map(p => p.y));
+
+        return {
+          xMin,
+          xMax,
+          yMin,
+          yMax,
+          zMax,
+          scale,
+          originX: (simCanvas.width - (maxSX - minSX)) / 2 - minSX,
+          originY: (simCanvas.height - (maxSY - minSY)) / 2 - minSY + 24,
+        };
+      }
+
+      function project3D(view, x, y, z) {
+        return {
+          x: view.originX + (x - y) * view.scale,
+          y: view.originY + (x + y) * view.scale * 0.45 - z * view.scale * 0.95,
+        };
+      }
+
+      function drawArrow(ctx, from, to, color, width = 3) {
+        const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const head = 12;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(to.x, to.y);
+        ctx.lineTo(to.x - head * Math.cos(angle - Math.PI / 7), to.y - head * Math.sin(angle - Math.PI / 7));
+        ctx.lineTo(to.x - head * Math.cos(angle + Math.PI / 7), to.y - head * Math.sin(angle + Math.PI / 7));
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawSimBackground() {
+        simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+        const g = simCtx.createLinearGradient(0, 0, 0, simCanvas.height);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(1, '#f9fbff');
+        simCtx.fillStyle = g;
+        simCtx.fillRect(0, 0, simCanvas.width, simCanvas.height);
+      }
+
+      function drawPlaneAndAxes(view) {
+        const planeCorners = [
+          project3D(view, view.xMin, view.yMin, 0),
+          project3D(view, view.xMax, view.yMin, 0),
+          project3D(view, view.xMax, view.yMax, 0),
+          project3D(view, view.xMin, view.yMax, 0),
+        ];
+
+        simCtx.save();
+        simCtx.fillStyle = 'rgba(255,255,255,0.98)';
+        simCtx.beginPath();
+        simCtx.moveTo(planeCorners[0].x, planeCorners[0].y);
+        for (let i = 1; i < planeCorners.length; i++) simCtx.lineTo(planeCorners[i].x, planeCorners[i].y);
+        simCtx.closePath();
+        simCtx.fill();
+
+        if (view.xMax > 0 && view.yMax > 0) {
+          const q = [
+            project3D(view, 0, 0, 0),
+            project3D(view, view.xMax, 0, 0),
+            project3D(view, view.xMax, view.yMax, 0),
+            project3D(view, 0, view.yMax, 0),
+          ];
+          simCtx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+          simCtx.beginPath();
+          simCtx.moveTo(q[0].x, q[0].y);
+          for (let i = 1; i < q.length; i++) simCtx.lineTo(q[i].x, q[i].y);
+          simCtx.closePath();
+          simCtx.fill();
+        }
+
+        simCtx.strokeStyle = 'rgba(148,163,184,0.35)';
+        simCtx.lineWidth = 1;
+        for (let x = view.xMin; x <= view.xMax; x++) {
+          const p1 = project3D(view, x, view.yMin, 0);
+          const p2 = project3D(view, x, view.yMax, 0);
+          simCtx.beginPath();
+          simCtx.moveTo(p1.x, p1.y);
+          simCtx.lineTo(p2.x, p2.y);
+          simCtx.stroke();
+        }
+        for (let y = view.yMin; y <= view.yMax; y++) {
+          const p1 = project3D(view, view.xMin, y, 0);
+          const p2 = project3D(view, view.xMax, y, 0);
+          simCtx.beginPath();
+          simCtx.moveTo(p1.x, p1.y);
+          simCtx.lineTo(p2.x, p2.y);
+          simCtx.stroke();
+        }
+        simCtx.restore();
+
+        const origin = project3D(view, 0, 0, 0);
+        drawArrow(simCtx, origin, project3D(view, view.xMax + 0.7, 0, 0), '#ef4444', 3.2);
+        drawArrow(simCtx, origin, project3D(view, 0, view.yMax + 0.7, 0), '#16a34a', 3.2);
+        drawArrow(simCtx, origin, project3D(view, 0, 0, 6.6), '#2563eb', 3.2);
+
+        simCtx.save();
+        simCtx.font = 'bold 14px "Hiragino Sans", "Yu Gothic", sans-serif';
+        simCtx.fillStyle = '#ef4444';
+        const xLabel = project3D(view, view.xMax + 0.95, 0, 0);
+        simCtx.fillText('x軸', xLabel.x + 6, xLabel.y + 2);
+        simCtx.fillStyle = '#16a34a';
+        const yLabel = project3D(view, 0, view.yMax + 0.95, 0);
+        simCtx.fillText('y軸', yLabel.x - 8, yLabel.y - 6);
+        simCtx.fillStyle = '#2563eb';
+        const zLabel = project3D(view, 0, 0, 6.95);
+        simCtx.fillText('z軸', zLabel.x + 8, zLabel.y - 4);
+        simCtx.restore();
+      }
+
+      function drawPoles3D(view) {
+        const focusThrow = activeOrLastThrow();
+        const hitMap = new Set((focusThrow?.points || []).map(p => `${p.x},${p.y}`));
+        const poles = [];
+
+        for (let x = view.xMin; x <= view.xMax; x++) {
+          for (let y = view.yMin; y <= view.yMax; y++) {
+            poles.push({ x, y, depth: x + y });
+          }
+        }
+
+        poles.sort((a, b) => a.depth - b.depth);
+
+        for (const pole of poles) {
+          const base = project3D(view, pole.x, pole.y, 0);
+          const top = project3D(view, pole.x, pole.y, 1.25);
+          const hit = hitMap.has(`${pole.x},${pole.y}`);
+
+          simCtx.save();
+          simCtx.strokeStyle = hit ? 'rgba(220,38,38,0.7)' : 'rgba(71,85,105,0.7)';
+          simCtx.lineWidth = hit ? 3 : 2.2;
+          simCtx.beginPath();
+          simCtx.moveTo(base.x, base.y);
+          simCtx.lineTo(top.x, top.y);
+          simCtx.stroke();
+
+          simCtx.fillStyle = hit ? '#dc2626' : '#475569';
+          simCtx.beginPath();
+          simCtx.arc(base.x, base.y, hit ? 4.1 : 3.4, 0, Math.PI * 2);
+          simCtx.fill();
+          simCtx.restore();
+        }
+      }
+
+      function drawRing3D(view, center, radius, tilt, yaw, style = {}) {
+        const samples = style.samples || 120;
+        const pts = [];
+        const u = { x: Math.cos(yaw), y: Math.sin(yaw), z: 0 };
+        const v = {
+          x: -Math.sin(yaw) * Math.cos(tilt),
+          y: Math.cos(yaw) * Math.cos(tilt),
+          z: Math.sin(tilt),
+        };
+
+        for (let i = 0; i <= samples; i++) {
+          const a = (i / samples) * Math.PI * 2;
+          const px = center.x + radius * Math.cos(a) * u.x + radius * Math.sin(a) * v.x;
+          const py = center.y + radius * Math.cos(a) * u.y + radius * Math.sin(a) * v.y;
+          const pz = center.z + radius * Math.cos(a) * u.z + radius * Math.sin(a) * v.z;
+          pts.push(project3D(view, px, py, pz));
+        }
+
+        simCtx.save();
+        simCtx.globalAlpha = style.alpha ?? 1;
+        simCtx.fillStyle = style.fill ?? 'rgba(239,68,68,0.14)';
+        simCtx.strokeStyle = style.stroke ?? '#ef4444';
+        simCtx.lineWidth = style.lineWidth ?? Math.max(2.2, view.scale * 0.18);
+        simCtx.beginPath();
+        simCtx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) simCtx.lineTo(pts[i].x, pts[i].y);
+        simCtx.closePath();
+        if (style.fill !== 'none') simCtx.fill();
+        simCtx.stroke();
+        simCtx.restore();
+      }
+
+      function drawTrajectory(view, entry) {
+        simCtx.save();
+        simCtx.strokeStyle = 'rgba(244, 114, 182, 0.55)';
+        simCtx.lineWidth = 3;
+        simCtx.setLineDash([10, 8]);
+        simCtx.beginPath();
+        for (let i = 0; i <= 70; i++) {
+          const t = i / 70;
+          const pos = cubicBezier(entry.sim.start, entry.sim.c1, entry.sim.c2, entry.sim.end, t);
+          const p = project3D(view, pos.x, pos.y, pos.z);
+          if (i === 0) simCtx.moveTo(p.x, p.y);
+          else simCtx.lineTo(p.x, p.y);
+        }
+        simCtx.stroke();
+        simCtx.restore();
+      }
+
+      function drawPastRings3D(view) {
+        for (let i = 0; i < state.throws.length; i++) {
+          const t = state.throws[i];
+          const isLast = i === state.throws.length - 1 && !state.animation;
+          drawRing3D(
+            view,
+            { x: t.cx, y: t.cy, z: 0.34 },
+            t.radius,
+            0.04,
+            0.26,
+            {
+              alpha: isLast ? 0.95 : 0.3,
+              fill: isLast ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.03)',
+              stroke: isLast ? '#ef4444' : 'rgba(239,68,68,0.35)',
+              lineWidth: isLast ? Math.max(2.8, view.scale * 0.18) : Math.max(2, view.scale * 0.14),
+            }
+          );
+        }
+      }
+
+      function renderSim() {
+        drawSimBackground();
+        const view = getSimView();
+        drawPlaneAndAxes(view);
+        drawPastRings3D(view);
+        drawPoles3D(view);
+
+        if (state.animation) {
+          const t = animationProgress();
+          const pose = getPose(state.animation.throwData, t);
+          drawTrajectory(view, state.animation.throwData);
+          drawRing3D(view, pose.position, state.animation.throwData.radius, pose.tilt, pose.yaw, {
+            alpha: 1,
+            fill: 'rgba(239,68,68,0.16)',
+            stroke: '#e11d48',
+            lineWidth: Math.max(3, view.scale * 0.19),
+          });
+
+          if (t >= 1) {
+            finalizeAnimation();
+          } else {
+            requestAnimationFrame(render);
+          }
+        }
+      }
+
+      function render() {
+        renderTarget();
+        renderSim();
+      }
+
+      function setHoverFromEvent(event) {
+        const rect = targetCanvas.getBoundingClientRect();
+        const sx = (event.clientX - rect.left) * (targetCanvas.width / rect.width);
+        const sy = (event.clientY - rect.top) * (targetCanvas.height / rect.height);
+        const world = screenToWorld(sx, sy);
+        state.hoverWorld = world;
+
+        if (world.x >= 0 && world.y >= 0) {
+          hoverChip.textContent = `カーソル座標: (${world.x.toFixed(2)}, ${world.y.toFixed(2)})`;
+        } else {
+          hoverChip.textContent = 'カーソル座標: 中心は第一象限のみ';
+        }
+      }
+
+      targetCanvas.addEventListener('pointerdown', (event) => {
+        targetCanvas.setPointerCapture(event.pointerId);
+        state.pointerDown = true;
+        state.dragging = false;
+        const rect = targetCanvas.getBoundingClientRect();
+        const sx = (event.clientX - rect.left) * (targetCanvas.width / rect.width);
+        const sy = (event.clientY - rect.top) * (targetCanvas.height / rect.height);
+        state.pointerStart = { x: sx, y: sy };
+        state.offsetStart = { x: state.offsetX, y: state.offsetY };
+        setHoverFromEvent(event);
+      });
+
+      targetCanvas.addEventListener('pointermove', (event) => {
+        setHoverFromEvent(event);
+        if (!state.pointerDown || !state.pointerStart) {
+          render();
+          return;
+        }
+
+        const rect = targetCanvas.getBoundingClientRect();
+        const sx = (event.clientX - rect.left) * (targetCanvas.width / rect.width);
+        const sy = (event.clientY - rect.top) * (targetCanvas.height / rect.height);
+        const dx = sx - state.pointerStart.x;
+        const dy = sy - state.pointerStart.y;
+
+        if (Math.hypot(dx, dy) > 6) {
+          state.dragging = true;
+          state.offsetX = state.offsetStart.x + dx;
+          state.offsetY = state.offsetStart.y - dy;
+          clampOffsets();
+          statusText.textContent = '2D平面を移動中';
+        }
+        render();
+      });
+
+      function endPointer(event) {
+        if (!state.pointerDown) return;
+        setHoverFromEvent(event);
+
+        if (!state.dragging && state.hoverWorld) {
+          addThrow(state.hoverWorld.x, state.hoverWorld.y);
+        } else if (state.dragging) {
+          statusText.textContent = '待機中';
+        }
+
+        state.pointerDown = false;
+        state.dragging = false;
+        state.pointerStart = null;
+        state.offsetStart = null;
+        render();
+      }
+
+      targetCanvas.addEventListener('pointerup', endPointer);
+      targetCanvas.addEventListener('pointercancel', endPointer);
+      targetCanvas.addEventListener('pointerleave', () => {
+        state.hoverWorld = null;
+        hoverChip.textContent = 'カーソル座標: --';
+        render();
+      });
+
+      targetCanvas.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const rect = targetCanvas.getBoundingClientRect();
+        const sx = (event.clientX - rect.left) * (targetCanvas.width / rect.width);
+        const sy = (event.clientY - rect.top) * (targetCanvas.height / rect.height);
+        const before = screenToWorld(sx, sy);
+        const delta = Math.sign(event.deltaY);
+        state.scale = Math.max(20, Math.min(90, state.scale - delta * 4));
+        zoomRange.value = String(state.scale);
+        zoomValue.textContent = `${state.scale} px`;
+        state.offsetX = sx - before.x * state.scale;
+        state.offsetY = targetCanvas.height - sy - before.y * state.scale;
+        clampOffsets();
+        render();
+      }, { passive: false });
+
+      randomThrowBtn.addEventListener('click', () => {
+        const bounds = visibleBounds();
+        const minX = Math.max(0, bounds.xMin);
+        const maxX = Math.max(minX + 0.01, bounds.xMax);
+        const minY = Math.max(0, bounds.yMin);
+        const maxY = Math.max(minY + 0.01, bounds.yMax);
+        const x = minX + Math.random() * Math.max(0.01, maxX - minX);
+        const y = minY + Math.random() * Math.max(0.01, maxY - minY);
+        addThrow(x, y);
+      });
+
+      undoBtn.addEventListener('click', () => {
+        if (state.animation) {
+          state.animation = null;
+        } else {
+          state.throws.pop();
+        }
+        updateStats();
+        statusText.textContent = '待機中';
+        render();
+      });
+
+      centerBtn.addEventListener('click', () => {
+        state.offsetX = 110;
+        state.offsetY = 95;
+        render();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        state.throws = [];
+        state.animation = null;
+        updateStats();
+        statusText.textContent = '待機中';
+        render();
+      });
+
+      window.addEventListener('resize', render);
+
+      updateStats();
+      syncDiameter(diameterRange);
+      zoomValue.textContent = `${state.scale} px`;
+      render();
+    })();
+  </script>
+</body>
+</html>
